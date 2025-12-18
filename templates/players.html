@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Brawlers - Brawlytics{% endblock %}
+{% block title %}Players - Brawlytics{% endblock %}
 
 {% block extra_styles %}
 <style>
-    .brawlers-header {
+    .players-header {
         text-align: center;
-        margin-bottom: 2rem;      
-        padding: 2rem 0 1.5rem;   
+        margin-bottom: 2rem;
+        padding: 2rem 0 1.5rem;
         position: relative;
     }
     
-    .brawlers-header::before {
+    .players-header::before {
         content: "";
         position: absolute;
         top: 0;
@@ -25,7 +25,7 @@
         z-index: -1;
     }
     
-    .brawlers-header h1 {
+    .players-header h1 {
         font-size: 3.5rem;
         margin-bottom: 0.75rem;
         font-weight: 800;
@@ -36,7 +36,7 @@
         letter-spacing: -2px;
     }
     
-    .brawlers-header p {
+    .players-header p {
         color: var(--text-dim);
         font-size: 1.15rem;
         font-weight: 400;
@@ -46,7 +46,7 @@
         background: var(--card);
         border-radius: 16px;
         padding: 2rem;
-        margin-bottom: 2rem;      
+        margin-bottom: 2rem;
         border: 1px solid rgba(255,255,255,0.05);
         max-width: 600px;
         margin-left: auto;
@@ -59,7 +59,7 @@
     
     .search-input {
         width: 100%;
-        padding: 1rem 1rem 1rem;
+        padding: 1rem;
         background: var(--dark);
         border: 2px solid rgba(255,255,255,0.1);
         border-radius: 10px;
@@ -74,72 +74,101 @@
         box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
     }
     
+    .players-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .player-card {
+        background: var(--card);
+        border-radius: 10px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 1px solid rgba(255,255,255,0.05);
+        text-decoration: none;
+        display: block;
+    }
+
+    .player-card:hover {
+        border-color: var(--primary);
+       
+        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+
+    .player-brawler-image {
+        width: 70px;
+        height: 70px;
+        object-fit: contain;
+        margin: 0 auto 1rem;
+        filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+        transition: transform 0.3s ease;
+    }
+
     
-    
-    .brawlers-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 1rem;
-}
 
-.brawler-card {
-    background: var(--card);
-    border-radius: 10px;
-    padding: 1rem;
-    text-align: center;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.05);
-    text-decoration: none;
-    display: block;
-}
+    .player-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+    }
 
-.brawler-card:hover {
-    border-color: var(--primary);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-}
+    .player-tag {
+        font-size: 0.8rem;
+        color: var(--text-dim);
+        font-family: inherit;
+        margin-bottom: 1rem;
+    }
 
-.brawler-image {
-    width: 60px;
-    height: 60px;
-    object-fit: contain;
-    margin: 0 auto 0.75rem;
-    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
-    transition: transform 0.3s ease;
-}
+    .player-region {
+        display: inline-block;
+        background: var(--primary);
+        color: white;
+        padding: 0.3rem 0.7rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 1rem;
+    }
 
-.brawler-name {
-    font-size: 1rem;
-    font-weight: 700;
-    margin-bottom: 0.75rem;
-    color: var(--text);
-}
+    .player-quick-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
 
-.brawler-quick-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-}
+    .quick-stat {
+        background: var(--dark);
+        padding: 0.5rem;
+        border-radius: 6px;
+    }
 
-.quick-stat {
-    background: var(--dark);
-    padding: 0.5rem;
-    border-radius: 6px;
-}
+    .quick-stat-label {
+        font-size: 0.65rem;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.2rem;
+    }
 
-.quick-stat-label {
-    font-size: 0.65rem;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 0.2rem;
-}
+    .quick-stat-value {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text);
+    }
 
-.quick-stat-value {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--text);
-}
+    .most-played {
+        font-size: 0.75rem;
+        color: var(--text-dim);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
     
     /* Color-coded win rates */
     .wr-s { color: #22c55e; }
@@ -158,59 +187,57 @@
     }
     
     @media (max-width: 768px) {
-        .brawlers-header h1 {
+        .players-header h1 {
             font-size: 2.5rem;
         }
         
-        .brawlers-grid {
+        .players-grid {
             grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 1rem;
         }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="brawlers-header">
-    <h1>Brawlers</h1>
-    <p>Complete statistics and matchup data for all brawlers</p>
+<div class="players-header">
+    <h1>Players</h1>
+    <p>Complete statistics for all competitive players</p>
 </div>
 
 <div class="search-section">
     <div class="search-box">
         <input type="text" 
                class="search-input" 
-               id="brawler-search" 
-               placeholder="Search brawlers..."
-               onkeyup="filterBrawlers()">
+               id="player-search" 
+               placeholder="Search players..."
+               onkeyup="filterPlayers()">
     </div>
 </div>
 
-<div class="brawlers-grid" id="brawlers-grid">
-    {% for brawler in brawlers %}
-    {% set brawler_img = brawler.name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
-    {% set win_rate = brawler.win_rate %}
+<div class="players-grid" id="players-grid">
+    {% for player in players %}
+    {% set brawler_img = player.most_played_brawler.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+    {% set win_rate = player.win_rate %}
     
-    <a href="/brawler/{{ brawler.name }}" class="brawler-card" data-name="{{ brawler.name.lower() }}">
+    <a href="/player/{{ player.tag|urlencode }}" class="player-card" data-name="{{ player.name.lower() }}" data-tag="{{ player.tag.lower() }}">
+        <div class="most-played">Most Played</div>
         <img src="/static/images/brawlers/{{ brawler_img }}" 
-             alt="{{ brawler.name }}" 
-             class="brawler-image"
+             alt="{{ player.most_played_brawler }}" 
+             class="player-brawler-image"
              onerror="this.style.display='none'">
-        <div class="brawler-name">{{ brawler.name }}</div>
-        <div class="brawler-quick-stats">
+        <div class="player-name">{{ player.name }}</div>
+        <div class="player-tag">{{ player.tag }}</div>
+        <div class="player-region">{{ player.region }}</div>
+        <div class="player-quick-stats">
             <div class="quick-stat">
-                <div class="quick-stat-label">Picks</div>
-                <div class="quick-stat-value">{{ brawler.picks }}</div>
-            </div>
-            <div class="quick-stat">
-                <div class="quick-stat-label">Pick Rate</div>
-                <div class="quick-stat-value">{{ "%.1f"|format(brawler.pick_rate) }}%</div>
+                <div class="quick-stat-label">Games</div>
+                <div class="quick-stat-value">{{ player.games }}</div>
             </div>
             <div class="quick-stat">
                 <div class="quick-stat-label">Wins</div>
-                <div class="quick-stat-value">{{ brawler.wins }}</div>
+                <div class="quick-stat-value">{{ player.wins }}</div>
             </div>
-            <div class="quick-stat">
+            <div class="quick-stat" style="grid-column: 1 / -1;">
                 <div class="quick-stat-label">Win Rate</div>
                 {% if win_rate >= 65 %}
                 <div class="quick-stat-value wr-s">{{ "%.1f"|format(win_rate) }}%</div>
@@ -232,14 +259,15 @@
 </div>
 
 <script>
-function filterBrawlers() {
-    const searchInput = document.getElementById('brawler-search').value.toLowerCase();
-    const cards = document.querySelectorAll('.brawler-card');
+function filterPlayers() {
+    const searchInput = document.getElementById('player-search').value.toLowerCase();
+    const cards = document.querySelectorAll('.player-card');
     let visibleCount = 0;
     
     cards.forEach(card => {
-        const brawlerName = card.dataset.name;
-        if (brawlerName.includes(searchInput)) {
+        const playerName = card.dataset.name;
+        const playerTag = card.dataset.tag;
+        if (playerName.includes(searchInput) || playerTag.includes(searchInput)) {
             card.style.display = 'block';
             visibleCount++;
         } else {
@@ -248,14 +276,14 @@ function filterBrawlers() {
     });
     
     // Show "no results" message if needed
-    const grid = document.getElementById('brawlers-grid');
+    const grid = document.getElementById('players-grid');
     let noResults = document.getElementById('no-results');
     
     if (visibleCount === 0 && !noResults) {
         noResults = document.createElement('div');
         noResults.id = 'no-results';
         noResults.className = 'no-results';
-        noResults.textContent = 'No brawlers found matching your search';
+        noResults.textContent = 'No players found matching your search';
         grid.appendChild(noResults);
     } else if (visibleCount > 0 && noResults) {
         noResults.remove();

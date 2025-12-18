@@ -1,1 +1,1 @@
-WEB_SERVER_URL = 'https://brawlnalytics.xyz'
+WEB_SERVER_URL = 'http://localhost:8080'

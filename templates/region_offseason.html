@@ -46,7 +46,6 @@
         width: 50px;
         height: 50px;
         object-fit: cover;
-        border-radius: 8px;
         
     }
     
@@ -135,7 +134,7 @@
         border-radius: 2px;
     }
     
-    /* Leaderboard - matching meta page style */
+    /* Leaderboard */
     .leaderboard {
         background: var(--card);
         border-radius: 16px;
@@ -201,13 +200,13 @@
         border-bottom: none;
     }
     
-    .team-left {
+    .player-left {
         display: flex;
         align-items: center;
         gap: 1.5rem;
     }
     
-    .team-rank {
+    .player-rank {
         font-size: 1.2rem;
         font-weight: 800;
         color: var(--primary);
@@ -215,43 +214,24 @@
         text-align: center;
     }
     
-    .team-logo {
-        width: 50px;
-        height: 50px;
-        border-radius: 8px;
-        object-fit: contain;
-        flex-shrink: 0;
-        transition: transform 0.2s ease;
-    }
-    
-    .leaderboard-item:hover .team-logo {
-        transform: scale(1.15);
-    }
-    
-    .team-info {
+    .player-info {
         display: flex;
         flex-direction: column;
     }
     
-    .team-name {
+    .player-name {
         font-weight: 700;
         font-size: 1.1rem;
         letter-spacing: -0.3px;
     }
     
-    .team-region {
-        color: var(--text-dim);
-        font-size: 0.85rem;
-        margin-top: 0.25rem;
-    }
-    
-    .team-record {
+    .player-record {
         font-weight: 700;
         font-size: 1.05rem;
         font-variant-numeric: tabular-nums;
     }
     
-    .team-score {
+    .player-score {
         color: white;
     }
     
@@ -308,12 +288,7 @@
             font-size: 0.9rem;
         }
         
-        .team-logo {
-            width: 40px;
-            height: 40px;
-        }
-        
-        .team-rank {
+        .player-rank {
             font-size: 1rem;
             min-width: 30px;
         }
@@ -347,57 +322,50 @@
         {% endif %}
         <h1 class="page-title">{{ region }}</h1>
     </div>
-    <p class="page-subtitle">Competitive statistics for {{ region }}</p>
+    <p class="page-subtitle">Player statistics for {{ region }}</p>
 </div>
 
 <div class="stat-grid">
     <div class="stat-card">
         <div class="stat-label">Matches</div>
-        <div class="stat-value">{{ total_matches  }}</div>
+        <div class="stat-value">{{ total_matches }}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Teams</div>
-        <div class="stat-value">{{ total_teams }}</div>
+        <div class="stat-label">Players</div>
+        <div class="stat-value">{{ total_players }}</div>
     </div>
 </div>
 
 <div style="margin-bottom: 2rem;">
-    <h2 class="section-title">Teams</h2>
+    <h2 class="section-title">Top Players</h2>
 </div>
 
 <div class="leaderboard">
-    <div class="leaderboard-header">Ranked by Win Rate</div>
-    {% for team_name, data in top_teams %}
-    {% set wr = (data.wins / data.matches * 100) if data.matches > 0 else 0 %}
-    {% set team_logo = team_name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
-    <div class="leaderboard-item" onclick="location.href='/team/{{ team_name }}'">
-        <div class="team-left">
-            <div class="team-rank">{{ loop.index }}</div>
-            <img src="/static/images/teams/{{ team_logo }}" 
-                 alt="{{ team_name }}" 
-                 class="team-logo"
-                 onerror="this.style.display='none'">
-            <div class="team-info">
-                <span class="team-name">{{ team_name }}</span>
-                {% if region_code == 'ALL' %}
-                <span class="team-region">{{ data.region }}</span>
-                {% endif %}
+    <div class="leaderboard-header">Ranked by Win Rate (Min. 5 matches)</div>
+    {% for player_tag, player_data in top_players %}
+    {% set wr = (player_data.wins / player_data.matches * 100) if player_data.matches > 0 else 0 %}
+    {% set rank = loop.index %}
+    <div class="leaderboard-item" onclick="location.href='/player/{{ player_tag|urlencode }}'">
+        <div class="player-left">
+            <div class="player-rank">{{ rank }}</div>
+            <div class="player-info">
+                <span class="player-name">{{ player_data.name }}</span>
             </div>
         </div>
-        <div class="team-record">
-            <span class="team-score">{{ data.wins }}-{{ data.losses }}</span> • 
+        <div class="player-record">
+            <span class="player-score">{{ player_data.wins }}-{{ player_data.losses }}</span> • 
             {% if wr >= 65 %}
-            <span class="team-winrate wr-s">{{ "%.1f"|format(wr) }}%</span>
+            <span class="player-winrate wr-s">{{ "%.1f"|format(wr) }}%</span>
             {% elif wr >= 57.5 %}
-            <span class="team-winrate wr-a">{{ "%.1f"|format(wr) }}%</span>
+            <span class="player-winrate wr-a">{{ "%.1f"|format(wr) }}%</span>
             {% elif wr >= 50 %}
-            <span class="team-winrate wr-b">{{ "%.1f"|format(wr) }}%</span>
+            <span class="player-winrate wr-b">{{ "%.1f"|format(wr) }}%</span>
             {% elif wr >= 42.5 %}
-            <span class="team-winrate wr-c">{{ "%.1f"|format(wr) }}%</span>
+            <span class="player-winrate wr-c">{{ "%.1f"|format(wr) }}%</span>
             {% elif wr >= 35 %}
-            <span class="team-winrate wr-d">{{ "%.1f"|format(wr) }}%</span>
+            <span class="player-winrate wr-d">{{ "%.1f"|format(wr) }}%</span>
             {% else %}
-            <span class="team-winrate wr-f">{{ "%.1f"|format(wr) }}%</span>
+            <span class="player-winrate wr-f">{{ "%.1f"|format(wr) }}%</span>
             {% endif %}
         </div>
     </div>

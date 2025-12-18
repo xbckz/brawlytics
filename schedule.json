@@ -25,7 +25,7 @@
         "day": "Friday",
         "time": "16:00",
         "description": "mc",
-        "notified": false
+        "notified": true
       }
     ],
     "daily_reminder_time": "12:00",

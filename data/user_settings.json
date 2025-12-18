@@ -1,6 +1,10 @@
 {
   "606751416261935123": {
-    "theme": "orange"
+    "theme": "red",
+    "date_range": "30d",
+    "start_date": null,
+    "end_date": null,
+    "view_mode": "offseason"
   },
   "test_user": {
     "theme": "orange",

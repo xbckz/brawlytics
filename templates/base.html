@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Brawlnalytics{% endblock %}</title>
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <title>{% block title %}Brawlytics{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <style>
         * {
             margin: 0;
@@ -71,6 +71,20 @@
             color: var(--primary);
         }
         
+        .mode-badge {
+            padding: 0.4rem -1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: transparent;
+            color: var(--text-dim);
+            
+        }
+
+        
+
         .nav-right {
             display: flex;
             gap: 1.5rem;
@@ -209,17 +223,24 @@
 <body>
     <nav class="nav">
         <div class="nav-left">
-            <a href="/dashboard" class="logo">Brawlnalytics</a>
+            <a href="/dashboard" class="logo">Brawlytics</a>
             <div class="nav-links">
                 <a href="/dashboard" class="nav-link">Dashboard</a>
                 <a href="/region/all" class="nav-link">All Regions</a>
                 <a href="/meta" class="nav-link">Meta</a>
                 <a href="/brawlers" class="nav-link">Brawlers</a>
                 <a href="/modes" class="nav-link">Maps & Modes</a>
+                {% if view_mode == 'offseason' %}
+                <a href="/players" class="nav-link">Players</a>
+                
+                <a href="/possible-teams" class="nav-link">Possible Teams</a>
+                {% endif %}
+                <a href="/about" class="nav-link">About</a>
                 <a href="/settings" class="nav-link">Settings</a>
             </div>
         </div>
         <div class="nav-right">
+            <span class="mode-badge">{{ view_mode|upper }}</span>
             <span class="username">{{ user }}</span>
             <a href="/logout" class="btn btn-outline">Logout</a>
         </div>

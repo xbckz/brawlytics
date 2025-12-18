@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ map_name }} - Brawlnalytics{% endblock %}
+{% block title %}{{ map_name }} - Brawlytics{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -457,6 +457,10 @@ function sortBrawlers(sortBy) {
     items.forEach(item => grid.appendChild(item));
 }
 
+// Sort by meta score on page load
+document.addEventListener('DOMContentLoaded', function() {
+    sortBrawlers('meta');
+});
 
 </script>
 {% endblock %}

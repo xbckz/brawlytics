@@ -17,6 +17,9 @@ CONFIG = {
     'API_CHECK_INTERVAL_MINUTES': 5,
 }
 
+
+
+
 # Global storage for tracking processed battles
 processed_battle_times = set()
 

@@ -46,7 +46,22 @@
         width: 100%;
         height: 100%;
         object-fit: contain;
-        filter: drop-shadow(0 8px 24px rgba(var(--primary-rgb, 255, 107, 0), 0.4));
+        filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.4));
+    }
+    
+    .player-brawler-avatar {
+        position: relative;
+    }
+    
+    .player-brawler-avatar::before {
+        content: "";
+        position: absolute;
+        inset: -10px;
+        background: var(--primary);
+        opacity: 0.2;
+        filter: blur(20px);
+        border-radius: 50%;
+        z-index: -1;
     }
     
     .player-hero h1 {
@@ -70,7 +85,7 @@
         margin-bottom: 0.5rem;
     }
     
-    .player-team-badge {
+    .player-region-badge {
         display: inline-block;
         background: var(--primary);
         color: white;
@@ -80,12 +95,9 @@
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-    
         transition: all 0.2s ease;
         text-decoration: none;
     }
-    
-    
     
     .overview-stats {
         display: grid;
@@ -260,15 +272,6 @@
             grid-template-columns: 1fr 1fr;
         }
         
-        .favorite-brawler-card {
-            flex-direction: column;
-            text-align: center;
-        }
-        
-        .favorite-brawler-stats {
-            grid-template-columns: 1fr;
-        }
-        
         .stats-grid {
             grid-template-columns: 1fr;
         }
@@ -281,8 +284,6 @@
     <a href="/dashboard">Home</a>
     <span class="breadcrumb-separator">/</span>
     <a href="/region/{{ player.region }}">{{ player.region }}</a>
-    <span class="breadcrumb-separator">/</span>
-    <a href="/team/{{ player.team_name }}">{{ player.team_name }}</a>
     <span class="breadcrumb-separator">/</span>
     <span class="breadcrumb-current">{{ player.name }}</span>
 </div>
@@ -297,7 +298,7 @@
         </div>
         <div class="player-tag">{{ player.tag }}</div>
         <h1>{{ player.name }}</h1>
-        <div class="player-team-badge">{{ player.team_name }}</div>
+        <div class="player-region-badge">{{ player.region }}</div>
     </div>
 </div>
 
@@ -312,7 +313,7 @@
     </div>
     <div class="overview-stat-card">
         <div class="overview-stat-label">Losses</div>
-        <div class="overview-stat-value">{{ player.matches - player.wins }}</div>
+        <div class="overview-stat-value">{{ player.losses }}</div>
     </div>
     <div class="overview-stat-card">
         <div class="overview-stat-label">Win Rate</div>
@@ -377,4 +378,44 @@
         </div>
     </div>
 </div>
+
+<div class="stats-section">
+    <div class="stats-header">Teammates</div>
+    <div class="stats-content">
+        <div class="stats-grid">
+            {% set teammates_list = player.teammates_seen.items()|list|sort(attribute='1.matches', reverse=True) %}
+            {% for teammate_tag, teammate_data in teammates_list[:15] %}
+            {% set teammate_wr = (teammate_data.wins / teammate_data.matches * 100) if teammate_data.matches > 0 else 0 %}
+            <a href="/player/{{ teammate_tag|urlencode }}" class="stat-item-link">
+                <div class="stat-item-icon">
+                    <img src="/static/images/brawlers/{{ teammate_data.favorite_brawler.lower().replace(' ', '_').replace('-', '_') }}.png" 
+                         alt="{{ teammate_data.name }}"
+                         onerror="this.src='/static/images/brawlers/default.png'">
+                </div>
+                <div class="stat-item-info">
+                    <div class="stat-item-name">{{ teammate_data.name }}</div>
+                    <div class="stat-item-subtitle">{{ teammate_data.matches }} games together</div>
+                </div>
+                <div class="stat-item-values">
+                    {% if teammate_wr >= 65 %}
+                    <div class="stat-item-winrate wr-s">{{ "%.1f"|format(teammate_wr) }}%</div>
+                    {% elif teammate_wr >= 57.5 %}
+                    <div class="stat-item-winrate wr-a">{{ "%.1f"|format(teammate_wr) }}%</div>
+                    {% elif teammate_wr >= 50 %}
+                    <div class="stat-item-winrate wr-b">{{ "%.1f"|format(teammate_wr) }}%</div>
+                    {% elif teammate_wr >= 42.5 %}
+                    <div class="stat-item-winrate wr-c">{{ "%.1f"|format(teammate_wr) }}%</div>
+                    {% elif teammate_wr >= 35 %}
+                    <div class="stat-item-winrate wr-d">{{ "%.1f"|format(teammate_wr) }}%</div>
+                    {% else %}
+                    <div class="stat-item-winrate wr-f">{{ "%.1f"|format(teammate_wr) }}%</div>
+                    {% endif %}
+                    <div class="stat-item-picks">Win Rate</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
 {% endblock %}

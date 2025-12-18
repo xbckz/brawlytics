@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Settings - Brawlnalytics{% endblock %}
+{% block title %}Settings - Brawlytics{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -296,7 +296,7 @@
 {% block content %}
 <div class="settings-header">
     <h1>Settings</h1>
-    <p>Customize your Brawlnalytics experience</p>
+    
 </div>
 
 <form method="POST">
@@ -369,6 +369,35 @@
         </div>
     </div>
     
+
+
+    <div class="settings-section">
+        <div class="section-header">View Mode</div>
+        <div class="section-content">
+            <div class="date-filter-grid">
+                <label class="date-option">
+                    <input type="radio" name="view_mode" value="season" {% if current_view_mode == 'season' %}checked{% endif %}>
+                    <div class="date-card">
+                        <div class="date-label">Season Mode</div>
+                        <div class="date-description">Team based statistics and rosters</div>
+                    </div>
+                </label>
+                
+                <label class="date-option">
+                    <input type="radio" name="view_mode" value="offseason" {% if current_view_mode == 'offseason' %}checked{% endif %}>
+                    <div class="date-card">
+                        <div class="date-label">Off Season Mode</div>
+                        <div class="date-description">Individual player tracking</div>
+                    </div>
+                </label>
+            </div>
+            
+            
+        </div>
+    </div>
+
+
+
     <div class="settings-section">
         <div class="section-header">Data Filters</div>
         <div class="section-content">
@@ -385,7 +414,7 @@
                     <input type="radio" name="date_range" value="30d" {% if current_date_range == '30d' %}checked{% endif %} onchange="toggleCustomDates(false)">
                     <div class="date-card">
                         <div class="date-label">Last 30 Days</div>
-                        <div class="date-description">Recent meta trends</div>
+                        <div class="date-description">Show only last 30 days</div>
                     </div>
                 </label>
                 

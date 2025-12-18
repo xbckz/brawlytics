@@ -1,8 +1,3 @@
-"""
-Local Web Server for Brawlnalytics
-Full-featured with all bot pages and customizable themes
-"""
-
 from flask import Flask, render_template, request, redirect, session, jsonify
 import json
 import os
@@ -16,6 +11,29 @@ from PIL import Image, ImageDraw, ImageFont
 from flask import send_file
 import io
 
+import brawl_match_processor
+
+
+try:
+    result = brawl_match_processor.load_matches_data(
+        user_id="test",
+        settings_file="data/user_settings.json", 
+        rosters_file="team_rosters.json",
+        tracked_players_file="tracked_players.json"
+    )
+    print("✅ RUST IS WORKING")
+except Exception as e:
+    print(f"❌ RUST FAILED: {e}")
+    import traceback
+    traceback.print_exc()
+
+
+
+
+from bot2 import (
+    load_bot_mode as bot_load_mode
+)
+
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
@@ -26,10 +44,16 @@ USER_SETTINGS_FILE = 'data/user_settings.json'
 MATCHES_FILE = 'matches.xlsx'
 TEAMS_FILE = 'teams.xlsx'
 
+
+_brawler_synergies = {}
+
+
 CONFIG = {
     'REGIONS': ['NA', 'EU', 'LATAM', 'EA', 'SEA'],
     'MODES': ['Gem Grab', 'Brawl Ball', 'Heist', 'Bounty', 'Knockout', 'Hot Zone']
 }
+
+VALID_MODES = {'Gem Grab', 'Brawl Ball', 'Heist', 'Bounty', 'Knockout', 'Hot Zone'}
 
 # Theme presets
 THEMES = {
@@ -54,6 +78,15 @@ _cache = {
 
 CACHE_DURATION = 300  # Cache for 5 minutes (300 seconds)
 
+
+_trios_cache = {
+    'data': None,
+    'timestamp': None,
+    'cache_key': None
+}
+
+TRIOS_CACHE_DURATION = 300
+
 def get_cache_key():
     """Generate a cache key based on user settings"""
     user_settings = load_json(USER_SETTINGS_FILE)
@@ -61,7 +94,8 @@ def get_cache_key():
     user_prefs = user_settings.get(user_id, {})
     
     # Create a hash of relevant settings that affect data
-    cache_key = f"{user_prefs.get('date_range', '30d')}_{user_prefs.get('start_date', '')}_{user_prefs.get('end_date', '')}"
+    view_mode = user_prefs.get('view_mode', 'season')
+    cache_key = f"{view_mode}_{user_prefs.get('date_range', '30d')}_{user_prefs.get('start_date', '')}_{user_prefs.get('end_date', '')}"
     return cache_key
 
 def get_cached_data():
@@ -75,11 +109,11 @@ def get_cached_data():
         _cache['user_settings_hash'] == current_cache_key and
         current_time - _cache['timestamp'] < CACHE_DURATION):
         
-        print(f"✓ Using cached data (age: {int(current_time - _cache['timestamp'])}s)")
+        print(f"Using cached data (age: {int(current_time - _cache['timestamp'])}s)")
         return _cache['data']
     
     # Cache is invalid, reload data
-    print("⟳ Loading fresh data...")
+    print("Loading fresh data...")
     start_time = time.time()
     
     data = load_matches_data()
@@ -90,7 +124,7 @@ def get_cached_data():
     _cache['user_settings_hash'] = current_cache_key
     
     elapsed = time.time() - start_time
-    print(f"✓ Data loaded in {elapsed:.2f}s")
+    print(f"Data loaded in {elapsed:.2f}s")
     
     return data
 
@@ -99,7 +133,12 @@ def clear_cache():
     _cache['data'] = None
     _cache['timestamp'] = None
     _cache['user_settings_hash'] = None
-    print("✓ Cache cleared")
+    _trios_cache['data'] = None
+    _trios_cache['timestamp'] = None
+    _trios_cache['cache_key'] = None
+
+    ensure_roster_files_exist()
+    print("🗑️ Cache cleared")
 
 def load_json(filepath):
     if not os.path.exists(filepath):
@@ -166,6 +205,48 @@ def is_user_authorized(discord_id):
     
     return True
 
+
+def load_bot_mode():
+    """Load current bot mode"""
+    mode_file = 'data/bot_mode.json'
+    if os.path.exists(mode_file):
+        with open(mode_file, 'r') as f:
+            data = json.load(f)
+            return data.get('mode', 'season')
+    return 'season'
+
+def get_config_for_mode():
+    """Get configuration based on current mode"""
+    mode = load_bot_mode()
+    
+    if mode == 'offseason':
+        return {
+            'MATCHES_FILE': 'matches_off.xlsx',
+            'TEAMS_FILE': 'players_off.xlsx',
+            'MODE_NAME': 'Off Season',
+            'IS_PLAYER_MODE': True
+        }
+    else:
+        return {
+            'MATCHES_FILE': 'matches.xlsx',
+            'TEAMS_FILE': 'teams.xlsx',
+            'MODE_NAME': 'Season',
+            'IS_PLAYER_MODE': False
+        }
+
+
+def save_bot_mode(mode):
+    """Save bot mode"""
+    mode_file = 'data/bot_mode.json'
+    os.makedirs(os.path.dirname(mode_file), exist_ok=True)
+    with open(mode_file, 'w') as f:
+        json.dump({
+            'mode': mode,
+            'updated_at': datetime.now().isoformat()
+        }, f, indent=2)
+
+
+
 def load_team_rosters():
     """Load valid player tags from teams.xlsx"""
     valid_players = {}
@@ -189,7 +270,6 @@ def load_team_rosters():
                     tag = str(row[tag_col]).strip().upper().replace('0', 'O')
                     valid_players[team_name].add(tag)
         
-        print(f"Loaded rosters for {len(valid_players)} teams")
         return valid_players
     except Exception as e:
         print(f"Error loading team rosters: {e}")
@@ -265,215 +345,312 @@ def assign_brawlers_to_tiers_web(meta_scores):
     
     return tier_lists, tier_config
 
+"****************************************"
 
 def load_matches_data():
-    """Load and process all match data"""
-    if not os.path.exists(MATCHES_FILE):
-        return None, {}, {}, {}, set()
+    """Load matches data using Rust processor"""
+    global _brawler_synergies
+    
+    user_id = str(session.get('discord_id', 'test_user'))
     
     try:
-        df = pd.read_excel(MATCHES_FILE)
+        result_json = brawl_match_processor.load_matches_data(
+            user_id=user_id,
+            settings_file="data/user_settings.json",
+            rosters_file="team_rosters.json",
+            tracked_players_file="tracked_players.json"
+        )
         
-        # Apply date filtering based on user settings
-        if 'battle_time' in df.columns:
-            df['battle_time'] = pd.to_datetime(df['battle_time'], utc=True)
-            
-            # Get user's date filter preference
-            user_settings = load_json(USER_SETTINGS_FILE)
-            user_id = str(session.get('discord_id', 'test_user'))
-            user_prefs = user_settings.get(user_id, {})
-            date_range = user_prefs.get('date_range', '30d')
-            
-            if date_range == 'all':
-                # No filtering - use all data
-                pass
-            elif date_range == '30d':
-                # Last 30 days
-                cutoff_date = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=30)
-                df = df[df['battle_time'] >= cutoff_date]
-            elif date_range == 'custom':
-                # Custom date range
-                start_date = user_prefs.get('start_date')
-                end_date = user_prefs.get('end_date')
-                
-                if start_date:
-                    start_dt = pd.Timestamp(start_date, tz='UTC')
-                    df = df[df['battle_time'] >= start_dt]
-                
-                if end_date:
-                    # Add one day to include the entire end date
-                    end_dt = pd.Timestamp(end_date, tz='UTC') + pd.Timedelta(days=1)
-                    df = df[df['battle_time'] < end_dt]
+        result = json.loads(result_json)
         
         
         
-        # Load valid rosters
-        valid_rosters = load_team_rosters()
+        if 'error' in result:
+            print(f"❌ ERROR FROM RUST: {result['error']}")
+            return None, {}, {}, {}, set()
         
-        teams_data = {}
-        region_stats = defaultdict(lambda: {'total_matches': 0, 'teams': set()})
-        mode_stats = defaultdict(lambda: defaultdict(int))
-        all_brawlers = set()
+        # Extract synergies
+        _brawler_synergies = result.get('brawler_matchups', {})
         
-        # ADD SERIES TRACKING - THIS IS THE KEY FIX
-        series_tracking_brawlers = {}  # Track brawler picks per series
+       
         
-        for _, match in df.iterrows():
-            match_id = match.get('battle_time', str(_))
+        # Print structure of first brawler
+        if _brawler_synergies:
+            first_brawler = list(_brawler_synergies.keys())[0]
             
-            # CREATE SERIES ID (same logic as Discord bot)
-            team1 = match['team1_name']
-            team2 = match['team2_name']
-            teams_sorted = tuple(sorted([team1, team2]))
-            mode = str(match['mode'])
-            map_name = str(match['map'])
-            
-            # Get both team compositions (sorted brawler lists)
-            team1_comp = sorted([
-                str(match['team1_player1_brawler']),
-                str(match['team1_player2_brawler']),
-                str(match['team1_player3_brawler'])
-            ])
-            team2_comp = sorted([
-                str(match['team2_player1_brawler']),
-                str(match['team2_player2_brawler']),
-                str(match['team2_player3_brawler'])
-            ])
-            
-            comps_sorted = tuple(sorted([tuple(team1_comp), tuple(team2_comp)]))
-            
-            # Round time to nearest 30 minutes
-            battle_time = match.get('battle_time')
-            if pd.notna(battle_time):
-                time_rounded = pd.Timestamp(battle_time).floor('30min')
-            else:
-                time_rounded = match_id
-            
-            # Series ID: same teams + mode + map + comps + time window
-            series_id = f"{teams_sorted}_{mode}_{map_name}_{comps_sorted}_{time_rounded}"
-            
-            if series_id not in series_tracking_brawlers:
-                series_tracking_brawlers[series_id] = {}
-            
-            for team_prefix in ['team1', 'team2']:
-                team_name = match[f'{team_prefix}_name']
-                team_region = str(match[f'{team_prefix}_region']).strip().upper()
-                
-                if team_region in ['NAN', 'NONE', '', 'UNKNOWN'] or pd.isna(match[f'{team_prefix}_region']):
-                    team_region = 'NA'
-                
-                if team_name not in teams_data:
-                    teams_data[team_name] = {
-                        'region': team_region,
-                        'matches': 0,
-                        'wins': 0,
-                        'losses': 0,
-                        'modes': defaultdict(lambda: {
-                            'matches': 0,
-                            'wins': 0,
-                            'maps': defaultdict(lambda: {
-                                'matches': 0,
-                                'wins': 0,
-                                'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0})
-                            })
-                        }),
-                        'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0}),
-                        'players': defaultdict(lambda: {
-                            'matches': 0,
-                            'wins': 0,
-                            'star_player': 0,
-                            'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0})
-                        })
-                    }
-                
-                team = teams_data[team_name]
-                team['matches'] += 1
-                
-                winner_name = str(match['winner']).strip()
-                is_winner = (winner_name == team_name)
-                
-                if is_winner:
-                    team['wins'] += 1
-                else:
-                    team['losses'] += 1
-                
-                # Mode and map stats
-                if mode not in ['Unknown', 'nan']:
-                    team['modes'][mode]['matches'] += 1
-                    team['modes'][mode]['maps'][map_name]['matches'] += 1
-                    mode_stats[mode]['matches'] += 1
-                    
-                    if is_winner:
-                        team['modes'][mode]['wins'] += 1
-                        team['modes'][mode]['maps'][map_name]['wins'] += 1
-                
-                # Get star player tag once per team
-                star_player_tag = str(match.get('star_player_tag', '')).strip().upper().replace('0', 'O')
-                
-                # Player and brawler stats
-                for i in range(1, 4):
-                    player_name = str(match.get(f'{team_prefix}_player{i}', ''))
-                    player_tag = str(match.get(f'{team_prefix}_player{i}_tag', '')).strip().upper().replace('0', 'O')
-                    brawler = str(match.get(f'{team_prefix}_player{i}_brawler', ''))
-                    
-                    if player_name and player_name != 'nan':
-                        # Check if player is in the official roster
-                        if valid_rosters and team_name in valid_rosters:
-                            if player_tag not in valid_rosters[team_name]:
-                                continue
-                        
-                        player = team['players'][player_tag]
-                        player['name'] = player_name
-                        player['matches'] += 1
-                        
-                        if is_winner:
-                            player['wins'] += 1
-                        
-                        # Track star player
-                        if star_player_tag and star_player_tag != 'NAN' and star_player_tag == player_tag:
-                            player['star_player'] += 1
-                        
-                        if brawler and brawler != 'nan':
-                            all_brawlers.add(brawler)
-                            
-                            # CRITICAL FIX: Track brawler picks per SERIES
-                            if team_name not in series_tracking_brawlers[series_id]:
-                                series_tracking_brawlers[series_id][team_name] = set()
+        
+        teams_data = result.get('teams_data')
+        players_data = result.get('players_data')
+        data = teams_data if teams_data is not None else players_data
+        
+        if data is None:
+            print("⚠️ No data returned from Rust")
+            return None, {}, {}, {}, set()
+        
+        return (
+            None,
+            data,
+            result.get('region_stats', {}),
+            result.get('mode_stats', {}),
+            set(result.get('all_brawlers', []))
+        )
+        
+    except Exception as e:
+        print(f"❌ PYTHON ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None, {}, {}, {}, set()
 
-                            brawler_key = f"{player_tag}_{brawler}"
-                            if brawler_key not in series_tracking_brawlers[series_id][team_name]:
-                                series_tracking_brawlers[series_id][team_name].add(brawler_key)
-                                
-                                # ONLY COUNT ONCE PER SERIES
-                                player['brawlers'][brawler]['picks'] += 1
-                                team['brawlers'][brawler]['picks'] += 1
-                                
-                                if mode not in ['Unknown', 'nan']:
-                                    team['modes'][mode]['maps'][map_name]['brawlers'][brawler]['picks'] += 1
-                                
-                                # Only count win ONCE per series if they won
-                                if is_winner:
-                                    player['brawlers'][brawler]['wins'] += 1
-                                    team['brawlers'][brawler]['wins'] += 1
-                                    if mode not in ['Unknown', 'nan']:
-                                        team['modes'][mode]['maps'][map_name]['brawlers'][brawler]['wins'] += 1
-                
-                region_stats[team_region]['total_matches'] += 1
-                region_stats[team_region]['teams'].add(team_name)
-        
-        for region in region_stats:
-            region_stats[region]['teams'] = list(region_stats[region]['teams'])
-        
-        return df, teams_data, dict(region_stats), dict(mode_stats), all_brawlers
+
+def get_brawler_synergies(brawler_name):
+    """Get teammates and opponents for a specific brawler"""
+    global _brawler_synergies
+    
+    
+    synergy_data = _brawler_synergies.get(brawler_name, {})
+   
+    
+    # The Rust code returns calculated results directly
+    best_teammates = synergy_data.get('best_teammates', [])
+    worst_teammates = synergy_data.get('worst_teammates', [])
+    best_matchups = synergy_data.get('best_matchups', [])
+    worst_matchups = synergy_data.get('worst_matchups', [])
+    
+    # Convert from Rust format to Python format
+    def convert_synergy_list(items):
+        result = []
+        for item in items:
+            # Handle both dict and object formats
+            if isinstance(item, dict):
+                result.append({
+                    'name': item.get('brawler', ''),
+                    'picks': item.get('picks', 0),
+                    'wins': item.get('wins', 0),
+                    'win_rate': float(item.get('winrate', 0))
+                })
+        return result
+    
+    best_teammates = convert_synergy_list(best_teammates)
+    best_matchups = convert_synergy_list(best_matchups)
+    worst_matchups = convert_synergy_list(worst_matchups)
+    
+    
+    return best_teammates, best_matchups, worst_matchups
+
+
+def get_brawler_synergies_filtered(brawler_name, mode_filter=None, map_filter=None):
+    """
+    Calculate synergies filtered by mode and/or map
+    Returns: (best_teammates, best_matchups, worst_matchups)
+    """
+    
+    # We need to re-calculate from matches data
+    matches_file = 'matches_off.xlsx' if load_bot_mode() == 'offseason' else 'matches.xlsx'
+    
+    if not os.path.exists(matches_file):
+        print(f"Matches file not found: {matches_file}")
+        return [], [], []
+    
+    try:
+        matches_df = pd.read_excel(matches_file)
     except Exception as e:
         print(f"Error loading matches: {e}")
-        return None, {}, {}, {}, set()
+        return [], [], []
     
+    def normalize_tag(tag):
+        if not tag or str(tag) == 'nan':
+            return None
+        tag = str(tag).strip().upper().replace('0', 'O')
+        if not tag.startswith('#'):
+            tag = '#' + tag
+        return tag
+    
+    # Track teammate and opponent stats
+    teammates_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
+    opponents_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
+    
+    for _, match in matches_df.iterrows():
+        mode = str(match.get('mode', 'Unknown'))
+        map_name = str(match.get('map', 'Unknown'))
+        
+        # Apply filters
+        if mode_filter and mode.lower().replace(' ', '_') != mode_filter.lower():
+            continue
+        if map_filter and map_name.lower().replace(' ', '_').replace("'", '').replace('-', '_') != map_filter.lower():
+            continue
+        
+        winner = str(match.get('winner', '')).strip()
+        
+        # Check both teams
+        for team_prefix in ['team1', 'team2']:
+            # Get brawlers for this team
+            team_brawlers = []
+            for i in range(1, 4):
+                brawler = str(match.get(f'{team_prefix}_player{i}_brawler', '')).strip()
+                if brawler and brawler != 'nan':
+                    team_brawlers.append(brawler)
+            
+            # Check if our brawler is in this team
+            if brawler_name not in team_brawlers:
+                continue
+            
+            # This team has our brawler - track teammates
+            is_winner = (winner == team_prefix)
+            
+            for teammate_brawler in team_brawlers:
+                if teammate_brawler != brawler_name:
+                    teammates_stats[teammate_brawler]['picks'] += 1
+                    if is_winner:
+                        teammates_stats[teammate_brawler]['wins'] += 1
+            
+            # Track opponents (other team)
+            opponent_prefix = 'team2' if team_prefix == 'team1' else 'team1'
+            opponent_brawlers = []
+            for i in range(1, 4):
+                opp_brawler = str(match.get(f'{opponent_prefix}_player{i}_brawler', '')).strip()
+                if opp_brawler and opp_brawler != 'nan':
+                    opponent_brawlers.append(opp_brawler)
+            
+            for opponent_brawler in opponent_brawlers:
+                opponents_stats[opponent_brawler]['picks'] += 1
+                if is_winner:
+                    opponents_stats[opponent_brawler]['wins'] += 1
+    
+    # Convert to lists with win rates
+    def convert_to_list(stats_dict, min_picks=3):
+        result = []
+        for brawler, data in stats_dict.items():
+            if data['picks'] >= min_picks:
+                win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
+                result.append({
+                    'name': brawler,
+                    'picks': data['picks'],
+                    'wins': data['wins'],
+                    'win_rate': win_rate
+                })
+        return sorted(result, key=lambda x: x['win_rate'], reverse=True)
+    
+    best_teammates = convert_to_list(teammates_stats)
+    
+    # For opponents: high win rate = good matchup (we win against them)
+    # low win rate = bad matchup (they win against us)
+    all_matchups = convert_to_list(opponents_stats)
+    best_matchups = sorted(all_matchups, key=lambda x: x['win_rate'], reverse=True)[:10]
+    worst_matchups = sorted(all_matchups, key=lambda x: x['win_rate'])[:10]
+    
+    
+    return best_teammates[:10], best_matchups, worst_matchups
+
+
+def assign_brawlers_to_tiers_unified(meta_scores):
+    """
+    UNIFIED tier assignment - produces identical results across bot and web
+    Creates balanced distributions using percentile-based approach
+    """
+    
+    if not meta_scores:
+        return None
+    
+    total_brawlers = len(meta_scores)
+    
+    # Define target percentages for each tier
+    tier_percentages = {
+        'S': 0.10,  # Top 10%
+        'A': 0.20,  # Next 20%
+        'B': 0.30,  # Next 30%
+        'C': 0.25,  # Next 25%
+        'D': 0.10,  # Next 10%
+        'F': 0.05   # Bottom 5%
+    }
+    
+    # Calculate target counts for each tier
+    tier_targets = {}
+    remaining = total_brawlers
+    
+    for tier in ['S', 'A', 'B', 'C', 'D']:
+        count = max(1, int(total_brawlers * tier_percentages[tier]))
+        tier_targets[tier] = count
+        remaining -= count
+    
+    # F tier gets whatever is left (at least 0)
+    tier_targets['F'] = max(0, remaining)
+    
+    # Assign brawlers to tiers based on counts
+    tiers = {
+        'S': {'brawlers': [], 'color': (255, 71, 87), 'threshold': 0},
+        'A': {'brawlers': [], 'color': (255, 165, 2), 'threshold': 0},
+        'B': {'brawlers': [], 'color': (255, 211, 42), 'threshold': 0},
+        'C': {'brawlers': [], 'color': (5, 196, 107), 'threshold': 0},
+        'D': {'brawlers': [], 'color': (15, 188, 249), 'threshold': 0},
+        'F': {'brawlers': [], 'color': (116, 125, 140), 'threshold': 0}
+    }
+    
+    current_index = 0
+    for tier_name in ['S', 'A', 'B', 'C', 'D', 'F']:
+        count = tier_targets[tier_name]
+        end_index = current_index + count
+        
+        # Assign brawlers
+        tiers[tier_name]['brawlers'] = meta_scores[current_index:end_index]
+        
+        # Set threshold based on lowest score in this tier
+        if tiers[tier_name]['brawlers']:
+            tiers[tier_name]['threshold'] = tiers[tier_name]['brawlers'][-1]['score']
+        else:
+            tiers[tier_name]['threshold'] = 0
+        
+        current_index = end_index
+    
+    return tiers
+
+
+def load_tracked_players_web():
+    """Load tracked players from players_off.xlsx"""
+    players_file = 'players_off.xlsx'
+    
+    if not os.path.exists(players_file):
+        print(f"{players_file} not found")
+        return {}
+    
+    tracked = {}
+    
+    try:
+        df = pd.read_excel(players_file)
+        
+        for _, row in df.iterrows():
+            tag = str(row['Player ID']).strip().upper().replace('0', 'O')
+            if not tag.startswith('#'):
+                tag = '#' + tag
+            
+            region = str(row.get('Region', 'NA')).strip().upper()
+            if region in ['NAN', 'NONE', '', 'NULL'] or pd.isna(row.get('Region')):
+                region = 'NA'
+            
+            tracked[tag] = {
+                'name': str(row['Player Name']).strip(),
+                'region': region,
+            }
+        
+        return tracked
+        
+    except Exception as e:
+        print(f"Error loading tracked players: {e}")
+        return {}
+
+
 
 @app.context_processor
 def inject_theme():
-    """Make theme available to all templates"""
-    return {'theme': get_user_theme()}
+    """Make theme and view mode available to all templates"""
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = str(session.get('discord_id', 'test_user'))
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+    
+    return {
+        'theme': get_user_theme(),
+        'view_mode': view_mode
+    }
 
 @app.before_request
 def require_auth():
@@ -487,56 +664,256 @@ def index():
         return redirect('/dashboard')
     return redirect('/auth')  # Force login in production
 
+
 @app.route('/dashboard')
 def dashboard():
-    matches_df, teams_data, region_stats, mode_stats, all_brawlers = get_cached_data()
-    if matches_df is None:
-        return "Error loading data", 500
+    try:
+        matches_df, data, region_stats, mode_stats, all_brawlers = get_cached_data()
+        
+        if data is None or not data:
+            print("❌ No data returned")
+            return "Error loading data - no data returned", 500
+        
+        # Get user's view mode
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = str(session.get('discord_id', 'test_user'))
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+        
+        
+        if view_mode == 'offseason':
+            
+            
+            # Check data structure
+            if not isinstance(data, dict):
+                print(f"❌ Expected dict, got {type(data)}")
+                return "Error: Invalid data structure for offseason mode", 500
+            
+            # Filter players with minimum 5 matches
+            filtered_players = []
+            for tag, player_data in data.items():
+                try:
+                    if not isinstance(player_data, dict):
+                        print(f"⚠️ Player {tag} has invalid data type: {type(player_data)}")
+                        continue
+                    
+                    matches = player_data.get('matches', 0)
+                    if matches >= 5:
+                        filtered_players.append((tag, player_data))
+                except Exception as e:
+                    print(f"⚠️ Error processing player {tag}: {e}")
+                    continue
+            
+            
+            
+            # Sort by win rate
+            try:
+                top_items = sorted(
+                    filtered_players,
+                    key=lambda x: (x[1]['wins'] / x[1]['matches']) if x[1].get('matches', 0) > 0 else 0,
+                    reverse=True
+                )[:10]
+                
+            except Exception as e:
+                print(f"❌ Error sorting players: {e}")
+                import traceback
+                traceback.print_exc()
+                return f"Error sorting players: {e}", 500
+            
+            # Calculate total matches
+            try:
+                total_matches = sum(
+                    stats.get('total_matches', 0) 
+                    for region, stats in region_stats.items() 
+                    if not region.startswith('_') and isinstance(stats, dict)
+                )
+                print(f"Total matches: {total_matches}")
+            except Exception as e:
+                print(f"❌ Error calculating total matches: {e}")
+                total_matches = 0
+            
+            # Render template
+            return render_template('dashboard_offseason.html',
+                                 user=session.get('discord_tag', 'Unknown'),
+                                 total_matches=total_matches,
+                                 total_players=len(data),
+                                 total_brawlers=len(all_brawlers),
+                                 top_players=top_items,
+                                 region_stats=region_stats)
+        
+        else:  # Season mode
+          
+            
+            if not isinstance(data, dict):
+                print(f"❌ Expected dict, got {type(data)}")
+                return "Error: Invalid data structure for season mode", 500
+            
+            try:
+                top_teams = sorted(
+                    data.items(),
+                    key=lambda x: (x[1]['wins'] / x[1]['matches']) if x[1].get('matches', 0) > 0 else 0,
+                    reverse=True
+                )[:10]
+            except Exception as e:
+                print(f"❌ Error sorting teams: {e}")
+                import traceback
+                traceback.print_exc()
+                return f"Error sorting teams: {e}", 500
+            
+            # Calculate total matches
+            total_matches = sum(team.get('matches', 0) for team in data.values())
+            
+            return render_template('dashboard.html',
+                                 user=session.get('discord_tag', 'Unknown'),
+                                 total_matches=total_matches,
+                                 total_teams=len(data),
+                                 total_brawlers=len(all_brawlers),
+                                 top_teams=top_teams)
     
-    top_teams = sorted(
-        teams_data.items(),
-        key=lambda x: (x[1]['wins'] / x[1]['matches']) if x[1]['matches'] > 0 else 0,
-        reverse=True
-    )[:10]
-    
-    return render_template('dashboard.html',
-                         user=session['discord_tag'],
-                         total_matches=len(matches_df),
-                         total_teams=len(teams_data),
-                         total_brawlers=len(all_brawlers),
-                         top_teams=top_teams)
+    except Exception as e:
+        print(f"\n❌ DASHBOARD ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Dashboard error: {e}", 500
+
 
 @app.route('/region/<region_name>')
 def region_page(region_name):
-    region_name = region_name.upper()
-    matches_df, teams_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+    try:
+        region_name = region_name.upper()
+        matches_df, data, region_stats, mode_stats, all_brawlers = get_cached_data()
+        
+        
+        
+        if data is None or not data:
+            print("❌ No data")
+            return "Error loading data", 500
+        
+        # Get user's view mode
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = str(session.get('discord_id', 'test_user'))
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+        
+       
+        
+        if view_mode == 'offseason':
+            # OFF-SEASON MODE: Show players instead of teams
+            
+            if region_name == 'ALL':
+                region_players = data  # All players
+                title = "All Regions"
+            else:
+                if region_name not in CONFIG['REGIONS']:
+                    return f"Region not found: {region_name}", 404
+                # Filter players by region
+                region_players = {
+                    tag: player 
+                    for tag, player in data.items() 
+                    if isinstance(player, dict) and player.get('region') == region_name
+                }
+                title = f"{region_name} Region"
+            
+          
+            
+            # Filter players with minimum 5 matches
+            filtered_players = [
+                (tag, player_data) 
+                for tag, player_data in region_players.items() 
+                if isinstance(player_data, dict) and player_data.get('matches', 0) >= 5
+            ]
+            
+           
+            
+            # Sort by win rate
+            top_players = sorted(
+                filtered_players,
+                key=lambda x: (x[1]['wins'] / x[1]['matches']) if x[1].get('matches', 0) > 0 else 0,
+                reverse=True
+            )[:20]  # Top 20 players
+            
+            total_matches = sum(p.get('matches', 0) for p in region_players.values() if isinstance(p, dict))
+            
+            # Use the offseason template
+            return render_template('region_offseason.html',
+                                 user=session.get('discord_tag', 'Unknown'),
+                                 region=title,
+                                 region_code=region_name,
+                                 total_matches=total_matches,
+                                 total_players=len(region_players),
+                                 top_players=top_players,
+                                 players_data=data)
+        
+        else:
+            # SEASON MODE: Show teams (existing logic)
+            
+            if region_name == 'ALL':
+                region_teams = data
+                title = "All Regions"
+            else:
+                if region_name not in CONFIG['REGIONS']:
+                    return f"Region not found: {region_name}", 404
+                region_teams = {
+                    name: team_data 
+                    for name, team_data in data.items() 
+                    if isinstance(team_data, dict) and team_data.get('region') == region_name
+                }
+                title = f"{region_name} Region"
+            
+            
+            
+            top_teams = sorted(
+                region_teams.items(),
+                key=lambda x: (x[1]['wins'] / x[1]['matches']) if x[1].get('matches', 0) > 0 else 0,
+                reverse=True
+            )[:20]
+            
+            total_matches = sum(t.get('matches', 0) for t in region_teams.values() if isinstance(t, dict))
+            
+            return render_template('region.html',
+                                 user=session.get('discord_tag', 'Unknown'),
+                                 region=title,
+                                 region_code=region_name,
+                                 total_matches=total_matches,
+                                 total_teams=len(region_teams),
+                                 top_teams=top_teams,
+                                 teams_data=data)
     
-    if matches_df is None:
-        return "Error loading data", 500
+    except Exception as e:
+        print(f"❌ REGION PAGE ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Region page error: {e}", 500
+
+"""
+Add this to your website.py to test which routes are registered
+"""
+
+@app.route('/test-routes')
+def test_routes():
+    """List all registered routes"""
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append({
+            'endpoint': rule.endpoint,
+            'methods': ','.join(rule.methods),
+            'path': str(rule)
+        })
     
-    if region_name == 'ALL':
-        region_teams = teams_data
-        title = "All Regions"
-    else:
-        if region_name not in CONFIG['REGIONS']:
-            return "Region not found", 404
-        region_teams = {name: data for name, data in teams_data.items() if data['region'] == region_name}
-        title = f"{region_name} Region"
+    routes.sort(key=lambda x: x['path'])
     
-    top_teams = sorted(
-        region_teams.items(),
-        key=lambda x: (x[1]['wins'] / x[1]['matches']) if x[1]['matches'] > 0 else 0,
-        reverse=True
-    )[:20]
+    output = "<h1>Registered Routes</h1><ul>"
+    for route in routes:
+        output += f"<li><b>{route['path']}</b> → {route['endpoint']} ({route['methods']})</li>"
+    output += "</ul>"
     
-    return render_template('region.html',
-                         user=session['discord_tag'],
-                         region=title,
-                         region_code=region_name,
-                         total_matches=sum(t['matches'] for t in region_teams.values()),
-                         total_teams=len(region_teams),
-                         top_teams=top_teams,
-                         teams_data=teams_data)
+    return output
+
+# Also add this debug route
+@app.route('/test-region')
+def test_region():
+    """Test if basic region route works"""
+    return "Region route is working! Try /region/NA or /region/ALL"
 
 @app.route('/team/<team_name>')
 def team_page(team_name):
@@ -595,6 +972,14 @@ def team_map_page(team_name, mode, map_name):
                          map_name=map_name,
                          map_data=map_data)
 
+
+
+@app.route('/about')
+def about_page():
+    return render_template('about.html',
+                         user=session.get('discord_tag', 'Unknown'))
+
+
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
     if request.method == 'POST':
@@ -603,16 +988,48 @@ def settings():
         
         theme = request.form.get('theme', 'red')
         date_range = request.form.get('date_range', '30d')
-        start_date = request.form.get('start_date', '')
-        end_date = request.form.get('end_date', '')
+        start_date = request.form.get('start_date', '').strip()
+        end_date = request.form.get('end_date', '').strip()
+        view_mode = request.form.get('view_mode', 'season')
+        
+        # Convert dates to RFC3339 format if they exist
+        start_date_rfc3339 = None
+        end_date_rfc3339 = None
+        
+        if date_range == 'custom':
+            if start_date:
+                try:
+                    # Parse date from form (YYYY-MM-DD) and convert to RFC3339
+                    from datetime import datetime
+                    dt = datetime.strptime(start_date, '%Y-%m-%d')
+                    # Add time component (start of day) and UTC timezone
+                    start_date_rfc3339 = dt.strftime('%Y-%m-%dT00:00:00Z')
+                    print(f"✅ Start date converted: {start_date} -> {start_date_rfc3339}")
+                except Exception as e:
+                    print(f"❌ Error parsing start_date: {e}")
+            
+            if end_date:
+                try:
+                    # Parse date from form (YYYY-MM-DD) and convert to RFC3339
+                    from datetime import datetime
+                    dt = datetime.strptime(end_date, '%Y-%m-%d')
+                    # Add time component (end of day) and UTC timezone
+                    end_date_rfc3339 = dt.strftime('%Y-%m-%dT23:59:59Z')
+                    print(f"✅ End date converted: {end_date} -> {end_date_rfc3339}")
+                except Exception as e:
+                    print(f"❌ Error parsing end_date: {e}")
         
         # Save all settings
         user_settings[user_id] = {
             'theme': theme if theme in THEMES else 'red',
             'date_range': date_range,
-            'start_date': start_date,
-            'end_date': end_date
+            'start_date': start_date_rfc3339,
+            'end_date': end_date_rfc3339,
+            'view_mode': view_mode
         }
+        
+        
+        
         save_json(USER_SETTINGS_FILE, user_settings)
         
         # IMPORTANT: Clear cache when settings change
@@ -629,8 +1046,28 @@ def settings():
     
     current_theme = user_prefs.get('theme', 'red')
     current_date_range = user_prefs.get('date_range', '30d')
-    start_date = user_prefs.get('start_date', '')
-    end_date = user_prefs.get('end_date', '')
+    
+    # Convert RFC3339 back to YYYY-MM-DD for form display
+    start_date = ''
+    end_date = ''
+    
+    if user_prefs.get('start_date'):
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(user_prefs['start_date'].replace('Z', '+00:00'))
+            start_date = dt.strftime('%Y-%m-%d')
+        except:
+            pass
+    
+    if user_prefs.get('end_date'):
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(user_prefs['end_date'].replace('Z', '+00:00'))
+            end_date = dt.strftime('%Y-%m-%d')
+        except:
+            pass
+    
+    current_view_mode = user_prefs.get('view_mode', 'season')
     
     return render_template('settings.html',
                          user=session['discord_tag'],
@@ -638,70 +1075,15 @@ def settings():
                          current_theme=current_theme,
                          current_date_range=current_date_range,
                          start_date=start_date,
-                         end_date=end_date)
+                         end_date=end_date,
+                         current_view_mode=current_view_mode)
+
+
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect('/')
-
-@app.route('/player/<path:player_tag>')
-def player_page(player_tag):
-    """Display individual player statistics"""
-    # Decode the URL-encoded tag
-    player_tag = unquote(player_tag)
-    
-    _, teams_data, _, _, _ = get_cached_data()
-    
-    # Search through all teams to find the player
-    player_data = None
-    team_name = None
-    
-    for t_name, team in teams_data.items():
-        if player_tag in team['players']:
-            player_data = team['players'][player_tag]
-            team_name = t_name
-            break
-    
-    if not player_data:
-        return f"Player not found: {player_tag}", 404
-    
-    # Find favorite (most played) brawler
-    favorite_brawler = None
-    if player_data['brawlers']:
-        favorite_brawler_name = max(
-            player_data['brawlers'].items(),
-            key=lambda x: x[1]['picks']
-        )
-        favorite_brawler = {
-            'name': favorite_brawler_name[0],
-            'picks': favorite_brawler_name[1]['picks'],
-            'wins': favorite_brawler_name[1]['wins']
-        }
-    else:
-        # Default if no brawlers
-        favorite_brawler = {
-            'name': 'None',
-            'picks': 0,
-            'wins': 0
-        }
-    
-    # Build player object for template
-    player = {
-        'name': player_data['name'],
-        'tag': player_tag,
-        'team_name': team_name,
-        'region': teams_data[team_name]['region'],
-        'matches': player_data['matches'],
-        'wins': player_data['wins'],
-        'star_player': player_data['star_player'],
-        'favorite_brawler': favorite_brawler,
-        'brawlers': player_data['brawlers']
-    }
-    
-    return render_template('player.html',
-                         user=session['discord_tag'],
-                         player=player)
 
 
 
@@ -730,7 +1112,7 @@ def meta_page():
             continue
         
         for mode_name, mode_data in team['modes'].items():
-            if mode_name in ['Unknown', 'nan', '', 'None']:
+            if mode_name not in VALID_MODES:
                 continue
             
             # Filter by mode
@@ -747,7 +1129,7 @@ def meta_page():
     
     meta_brawlers = []
     for brawler, data in brawler_stats.items():
-        if data['picks'] >= 1:
+        if data['picks'] >= 3:
             pick_rate = (data['picks'] / total_picks) * 100 if total_picks > 0 else 0
             win_rate = (data['wins'] / data['picks']) * 100 if data['picks'] > 0 else 0
             meta_score = win_rate * pick_rate
@@ -762,7 +1144,7 @@ def meta_page():
     all_modes = set()
     for team in teams_data.values():
         for mode_name in team['modes'].keys():
-            if mode_name not in ['Unknown', 'nan', '', 'None']:
+            if mode_name in VALID_MODES:
                 all_modes.add(mode_name)
     
     return render_template('meta.html',
@@ -780,7 +1162,7 @@ def generate_meta_tier_list():
         region = request.args.get('region', 'ALL').upper()
         mode = request.args.get('mode', 'ALL')
         
-        print(f"Generating tier list for region={region}, mode={mode}")
+        
         
         _, teams_data, _, _, _ = get_cached_data()
         
@@ -801,7 +1183,7 @@ def generate_meta_tier_list():
         
         # Iterate through modes
         for mode_name, mode_data in team['modes'].items():
-            if mode_name in ['Unknown', 'nan', '', 'None']:
+            if mode_name not in VALID_MODES:
                 continue
             
             # Filter by mode
@@ -817,7 +1199,7 @@ def generate_meta_tier_list():
     # Calculate meta scores
     meta_scores = []
     for brawler, data in brawler_stats.items():
-        if data['picks'] < 1:  # Skip low sample size
+        if data['picks'] < 3:  # Skip low sample size
             continue
         
         pick_rate = (data['picks'] / total_picks * 100) if total_picks > 0 else 0
@@ -839,26 +1221,28 @@ def generate_meta_tier_list():
     meta_scores.sort(key=lambda x: x['score'], reverse=True)
     
     # Use improved tier assignment
-    tier_lists, tier_config = assign_brawlers_to_tiers_web(meta_scores)
-    
-    if not tier_lists:
+    tiers = assign_brawlers_to_tiers_unified(meta_scores)
+    if not tiers:
         return "Not enough data", 404
 
-    print("\n" + "="*80)
-    print("WEB SERVER - TIER ASSIGNMENTS")
-    print("="*80)
-    print(f"Total brawlers: {len(meta_scores)}")
+    # Convert to format expected by image generation
+    tier_lists = {}
+    tier_config = {}
+    for tier_name in ['S', 'A', 'B', 'C', 'D', 'F']:
+        tier_lists[tier_name] = tiers[tier_name]['brawlers']
+        tier_config[tier_name] = {
+            'threshold': tiers[tier_name]['threshold'],
+            'color': f"#{tiers[tier_name]['color'][0]:02x}{tiers[tier_name]['color'][1]:02x}{tiers[tier_name]['color'][2]:02x}",
+            'bg': '#1e2124'  # Use a default background
+        }
+
     
-    print("\nTier contents:")
     for tier_name in ['S', 'A', 'B', 'C', 'D', 'F']:
         brawlers = tier_lists[tier_name]
-        print(f"\n{tier_name} Tier ({len(brawlers)} brawlers):")
-        for b in brawlers:
-            print(f"  {b['name']}: score={b['score']:.4f}, wr={b['win_rate']:.2f}%, pr={b['pick_rate']:.2f}%")
-    print("="*80 + "\n")
+        
+        
     
     # Generate image
-    print(f"Generating image with {sum(len(t) for t in tier_lists.values())} brawlers")
     img = generate_tier_list_image(tier_lists, region, mode, tier_config)
     
     # Send image
@@ -866,7 +1250,6 @@ def generate_meta_tier_list():
     img.save(img_io, 'PNG', optimize=False)
     img_io.seek(0)
     
-    print("Image generated successfully")
     return send_file(img_io, mimetype='image/png')
 
 
@@ -924,7 +1307,7 @@ def generate_tier_list_image(tier_lists, region, mode, tier_config):
         if title_font is None:
             raise Exception("No font found")
     except:
-        print("Using default font")
+        
         title_font = ImageFont.load_default()
         subtitle_font = ImageFont.load_default()
         tier_font = ImageFont.load_default()
@@ -1100,745 +1483,1079 @@ def brawlers_page():
                          total_picks=total_picks)
 
 
+# Replace the brawler_detail_page function in website.py
+
 @app.route('/brawler/<brawler_name>')
 def brawler_detail_page(brawler_name):
     """Detailed brawler statistics page"""
-    matches_df, teams_data, _, _, _ = get_cached_data()
-    
-    if matches_df is None:
-        return "Error loading data", 500
-    
-    # Collect detailed stats for this brawler
-    brawler_stats = {
-        'picks': 0,
-        'wins': 0,
-        'modes': defaultdict(lambda: {
+    try:
+        matches_df, data, region_stats, _, _ = get_cached_data()
+        
+      
+        
+        if data is None or not data:
+            return "Error loading data", 500
+        
+        # Get user's view mode
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = str(session.get('discord_id', 'test_user'))
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+        
+        # Initialize brawler stats
+        brawler_stats = {
             'picks': 0,
             'wins': 0,
-            'maps': defaultdict(lambda: {'picks': 0, 'wins': 0})
-        }),
-        'teammates': defaultdict(lambda: {'picks': 0, 'wins': 0}),
-        'opponents': defaultdict(lambda: {'picks': 0, 'wins': 0})
-    }
-    
-    # Track series to avoid double-counting
-    series_tracking = {}
-    
-    # Track matchups using match data
-    for _, match in matches_df.iterrows():
-        # Create series ID (same logic as load_matches_data)
-        team1 = match['team1_name']
-        team2 = match['team2_name']
-        teams_sorted = tuple(sorted([team1, team2]))
-        mode = str(match['mode'])
-        map_name = str(match['map'])
-        
-        team1_comp = sorted([
-            str(match['team1_player1_brawler']),
-            str(match['team1_player2_brawler']),
-            str(match['team1_player3_brawler'])
-        ])
-        team2_comp = sorted([
-            str(match['team2_player1_brawler']),
-            str(match['team2_player2_brawler']),
-            str(match['team2_player3_brawler'])
-        ])
-        
-        comps_sorted = tuple(sorted([tuple(team1_comp), tuple(team2_comp)]))
-        
-        battle_time = match.get('battle_time')
-        if pd.notna(battle_time):
-            time_rounded = pd.Timestamp(battle_time).floor('30min')
-        else:
-            time_rounded = str(_)
-        
-        series_id = f"{teams_sorted}_{mode}_{map_name}_{comps_sorted}_{time_rounded}"
-        
-        for team_prefix in ['team1', 'team2']:
-            team_brawlers = [
-                str(match[f'{team_prefix}_player1_brawler']),
-                str(match[f'{team_prefix}_player2_brawler']),
-                str(match[f'{team_prefix}_player3_brawler'])
-            ]
-            
-            if brawler_name not in team_brawlers:
-                continue
-            
-            # Check if we've already counted this series for this brawler
-            if series_id not in series_tracking:
-                series_tracking[series_id] = set()
-            
-            if brawler_name in series_tracking[series_id]:
-                continue  # Already counted this series
-            
-            series_tracking[series_id].add(brawler_name)
-            
-            # Found our brawler in this team
-            winner = str(match['winner'])
-            team_name = match[f'{team_prefix}_name']
-            is_winner = (winner == team_name)
-            
-            # Update basic stats (ONCE per series)
-            brawler_stats['picks'] += 1
-            if is_winner:
-                brawler_stats['wins'] += 1
-            
-            # Mode and map stats
-            if mode not in ['Unknown', 'nan', '', 'None']:
-                brawler_stats['modes'][mode]['picks'] += 1
-                brawler_stats['modes'][mode]['maps'][map_name]['picks'] += 1
-                if is_winner:
-                    brawler_stats['modes'][mode]['wins'] += 1
-                    brawler_stats['modes'][mode]['maps'][map_name]['wins'] += 1
-            
-            # Teammates (other brawlers on same team)
-            for teammate in team_brawlers:
-                if teammate != brawler_name and teammate not in ['nan', '', 'None']:
-                    brawler_stats['teammates'][teammate]['picks'] += 1
-                    if is_winner:
-                        brawler_stats['teammates'][teammate]['wins'] += 1
-            
-            # Opponents (brawlers on enemy team)
-            enemy_prefix = 'team2' if team_prefix == 'team1' else 'team1'
-            enemy_brawlers = [
-                str(match[f'{enemy_prefix}_player1_brawler']),
-                str(match[f'{enemy_prefix}_player2_brawler']),
-                str(match[f'{enemy_prefix}_player3_brawler'])
-            ]
-            
-            for opponent in enemy_brawlers:
-                if opponent not in ['nan', '', 'None']:
-                    brawler_stats['opponents'][opponent]['picks'] += 1
-                    if is_winner:
-                        brawler_stats['opponents'][opponent]['wins'] += 1
-    
-    if brawler_stats['picks'] == 0:
-        return "Brawler not found or no data available", 404
-    
-    # Calculate win rates and sort
-    overall_winrate = (brawler_stats['wins'] / brawler_stats['picks'] * 100) if brawler_stats['picks'] > 0 else 0
-    
-    # Best modes (sort by win rate with min 3 picks)
-    best_modes = []
-    for mode, data in brawler_stats['modes'].items():
-        if data['picks'] >= 3:
-            wr = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            best_modes.append({'name': mode, 'picks': data['picks'], 'wins': data['wins'], 'win_rate': wr})
-    best_modes.sort(key=lambda x: x['win_rate'], reverse=True)
-    
-    # Best maps (sort by win rate with min 3 picks)
-    best_maps = []
-    for mode, mode_data in brawler_stats['modes'].items():
-        for map_name, data in mode_data['maps'].items():
-            if data['picks'] >= 3:
-                wr = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-                best_maps.append({
-                    'name': map_name,
-                    'mode': mode,
-                    'picks': data['picks'],
-                    'wins': data['wins'],
-                    'win_rate': wr
-                })
-    best_maps.sort(key=lambda x: x['win_rate'], reverse=True)
-    
-    # Best teammates (sort by win rate with min 5 picks together)
-    best_teammates = []
-    for teammate, data in brawler_stats['teammates'].items():
-        if data['picks'] >= 5:
-            wr = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            best_teammates.append({'name': teammate, 'picks': data['picks'], 'wins': data['wins'], 'win_rate': wr})
-    best_teammates.sort(key=lambda x: x['win_rate'], reverse=True)
-    
-    # FIXED: Calculate ALL matchups, then split into best/worst
-    all_matchups = []
-    for opponent, data in brawler_stats['opponents'].items():
-        if data['picks'] >= 5:
-            wr = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            all_matchups.append({
-                'name': opponent,
-                'picks': data['picks'],
-                'wins': data['wins'],
-                'win_rate': wr
+            'modes': defaultdict(lambda: {
+                'picks': 0,
+                'wins': 0,
+                'maps': defaultdict(lambda: {'picks': 0, 'wins': 0})
             })
+        }
+        
+        if view_mode == 'offseason':
+            # OFF-SEASON MODE: Use players_data
+            players_data = data
+            
+            for player_tag, player in players_data.items():
+                if not isinstance(player, dict):
+                    continue
+                
+                player_brawlers = player.get('brawlers', {})
+                if not isinstance(player_brawlers, dict) or brawler_name not in player_brawlers:
+                    continue
+                
+                player_brawler_data = player_brawlers.get(brawler_name, {})
+                if isinstance(player_brawler_data, dict):
+                    brawler_stats['picks'] += player_brawler_data.get('picks', 0)
+                    brawler_stats['wins'] += player_brawler_data.get('wins', 0)
+                
+                player_modes = player.get('modes', {})
+                if isinstance(player_modes, dict):
+                    for mode, mode_data in player_modes.items():
+                        if mode not in VALID_MODES or not isinstance(mode_data, dict):
+                            continue
+                        
+                        mode_maps = mode_data.get('maps', {})
+                        if isinstance(mode_maps, dict):
+                            for map_name, map_data in mode_maps.items():
+                                if not isinstance(map_data, dict):
+                                    continue
+                                
+                                map_brawlers = map_data.get('brawlers', {})
+                                if isinstance(map_brawlers, dict) and brawler_name in map_brawlers:
+                                    map_brawler_data = map_brawlers[brawler_name]
+                                    if isinstance(map_brawler_data, dict):
+                                        brawler_stats['modes'][mode]['picks'] += map_brawler_data.get('picks', 0)
+                                        brawler_stats['modes'][mode]['wins'] += map_brawler_data.get('wins', 0)
+                                        brawler_stats['modes'][mode]['maps'][map_name]['picks'] += map_brawler_data.get('picks', 0)
+                                        brawler_stats['modes'][mode]['maps'][map_name]['wins'] += map_brawler_data.get('wins', 0)
+        else:
+            # SEASON MODE: Use teams_data
+            teams_data = data
+            
+            for team_name, team in teams_data.items():
+                if not isinstance(team, dict):
+                    continue
+                
+                team_brawlers = team.get('brawlers', {})
+                if not isinstance(team_brawlers, dict) or brawler_name not in team_brawlers:
+                    continue
+                
+                team_brawler_data = team_brawlers.get(brawler_name, {})
+                if isinstance(team_brawler_data, dict):
+                    brawler_stats['picks'] += team_brawler_data.get('picks', 0)
+                    brawler_stats['wins'] += team_brawler_data.get('wins', 0)
+                
+                team_modes = team.get('modes', {})
+                if isinstance(team_modes, dict):
+                    for mode, mode_data in team_modes.items():
+                        if mode not in VALID_MODES or not isinstance(mode_data, dict):
+                            continue
+                        
+                        mode_maps = mode_data.get('maps', {})
+                        if isinstance(mode_maps, dict):
+                            for map_name, map_data in mode_maps.items():
+                                if not isinstance(map_data, dict):
+                                    continue
+                                
+                                map_brawlers = map_data.get('brawlers', {})
+                                if isinstance(map_brawlers, dict) and brawler_name in map_brawlers:
+                                    map_brawler_data = map_brawlers[brawler_name]
+                                    if isinstance(map_brawler_data, dict):
+                                        brawler_stats['modes'][mode]['picks'] += map_brawler_data.get('picks', 0)
+                                        brawler_stats['modes'][mode]['wins'] += map_brawler_data.get('wins', 0)
+                                        brawler_stats['modes'][mode]['maps'][map_name]['picks'] += map_brawler_data.get('picks', 0)
+                                        brawler_stats['modes'][mode]['maps'][map_name]['wins'] += map_brawler_data.get('wins', 0)
+        
+        if brawler_stats['picks'] == 0:
+            return f"Brawler {brawler_name} not found or no data available", 404
+        
+        # Calculate stats
+        overall_winrate = (brawler_stats['wins'] / brawler_stats['picks'] * 100) if brawler_stats['picks'] > 0 else 0
+        
+        best_modes = []
+        for mode, mode_data in brawler_stats['modes'].items():
+            if mode not in VALID_MODES:
+                continue
+            if mode_data['picks'] >= 1:
+                wr = (mode_data['wins'] / mode_data['picks'] * 100) if mode_data['picks'] > 0 else 0
+                best_modes.append({'name': mode, 'picks': mode_data['picks'], 'wins': mode_data['wins'], 'win_rate': wr})
+        best_modes.sort(key=lambda x: x['win_rate'], reverse=True)
+        
+        best_maps = []
+        for mode, mode_data in brawler_stats['modes'].items():
+            for map_name, map_stats in mode_data['maps'].items():
+                if map_stats['picks'] >= 1:
+                    wr = (map_stats['wins'] / map_stats['picks'] * 100) if map_stats['picks'] > 0 else 0
+                    best_maps.append({
+                        'name': map_name,
+                        'mode': mode,
+                        'picks': map_stats['picks'],
+                        'wins': map_stats['wins'],
+                        'win_rate': wr
+                    })
+        best_maps.sort(key=lambda x: x['win_rate'], reverse=True)
+        
+        # NEW: Get synergies from global cache
+        best_teammates, best_matchups, worst_matchups = get_brawler_synergies(brawler_name)
+        
+        
+        return render_template('brawler_detail.html',
+                             user=session.get('discord_tag', 'Unknown'),
+                             brawler_name=brawler_name,
+                             stats=brawler_stats,
+                             overall_winrate=overall_winrate,
+                             best_modes=best_modes[:10],
+                             best_maps=best_maps[:10],
+                             best_teammates=best_teammates[:10],
+                             best_matchups=best_matchups,
+                             worst_matchups=worst_matchups)
     
-    # Sort by win rate
-    all_matchups.sort(key=lambda x: x['win_rate'], reverse=True)
-    
-    # Best matchups: Top 10 highest win rates (we beat them)
-    best_matchups = all_matchups[:10]
-    
-    # Worst matchups: Bottom 10 lowest win rates (they beat us)
-    worst_matchups = all_matchups[-10:]
-    worst_matchups.reverse()  # Show worst first (lowest win rate at top)
-    
-    return render_template('brawler_detail.html',
-                         user=session['discord_tag'],
-                         brawler_name=brawler_name,
-                         stats=brawler_stats,
-                         overall_winrate=overall_winrate,
-                         best_modes=best_modes[:10],
-                         best_maps=best_maps[:10],
-                         best_teammates=best_teammates[:10],
-                         best_matchups=best_matchups,
-                         worst_matchups=worst_matchups)
+    except Exception as e:
+        print(f"❌ BRAWLER DETAIL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Brawler detail error: {e}", 500
+
 
 
 @app.route('/modes/<mode_name>')
 def mode_detail_page(mode_name):
     """Detailed mode statistics page"""
-    # Convert URL format back to display format
-    mode_display = mode_name.replace('_', ' ').title()
+    try:
+        # Convert URL format back to display format
+        mode_display = mode_name.replace('_', ' ').title()
+        
+        
+        
+        matches_df, data, _, mode_stats, _ = get_cached_data()
+        
+        if data is None or not data:
+            return "Error loading data", 500
+        
+        # Get user's view mode
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = str(session.get('discord_id', 'test_user'))
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+        
+        
+        
+        # Collect stats for this mode
+        mode_stats_data = {
+            'total_games': 0,
+            'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0}),
+            'maps': defaultdict(lambda: {'games': 0})
+        }
+        
+        if view_mode == 'offseason':
+            # OFF-SEASON: Use players_data
+            for tag, player in data.items():
+                if not isinstance(player, dict):
+                    continue
+                
+                player_modes = player.get('modes', {})
+                if not isinstance(player_modes, dict):
+                    continue
+                
+                for mode, mode_data in player_modes.items():
+                    if mode.lower().replace(' ', '_') != mode_name.lower() or not isinstance(mode_data, dict):
+                        continue
+                    
+                    mode_display = mode  # Use actual mode name from data
+                    
+                    # Count games
+                    mode_stats_data['total_games'] += mode_data.get('matches', 0)
+                    
+                    # Track maps
+                    mode_maps = mode_data.get('maps', {})
+                    if isinstance(mode_maps, dict):
+                        for map_name, map_data in mode_maps.items():
+                            if isinstance(map_data, dict):
+                                mode_stats_data['maps'][map_name]['games'] += map_data.get('matches', 0)
+                                
+                                # Collect brawler stats
+                                map_brawlers = map_data.get('brawlers', {})
+                                if isinstance(map_brawlers, dict):
+                                    for brawler, brawler_data in map_brawlers.items():
+                                        if isinstance(brawler_data, dict):
+                                            mode_stats_data['brawlers'][brawler]['picks'] += brawler_data.get('picks', 0)
+                                            mode_stats_data['brawlers'][brawler]['wins'] += brawler_data.get('wins', 0)
+        else:
+            # SEASON: Use teams_data
+            for team_name, team in data.items():
+                if not isinstance(team, dict):
+                    continue
+                
+                team_modes = team.get('modes', {})
+                if not isinstance(team_modes, dict):
+                    continue
+                
+                for mode, mode_data in team_modes.items():
+                    if mode.lower().replace(' ', '_') != mode_name.lower() or not isinstance(mode_data, dict):
+                        continue
+                    
+                    mode_display = mode
+                    
+                    # Count games
+                    mode_stats_data['total_games'] += mode_data.get('matches', 0)
+                    
+                    # Track maps
+                    mode_maps = mode_data.get('maps', {})
+                    if isinstance(mode_maps, dict):
+                        for map_name, map_data in mode_maps.items():
+                            if isinstance(map_data, dict):
+                                mode_stats_data['maps'][map_name]['games'] += map_data.get('matches', 0)
+                                
+                                # Collect brawler stats
+                                map_brawlers = map_data.get('brawlers', {})
+                                if isinstance(map_brawlers, dict):
+                                    for brawler, brawler_data in map_brawlers.items():
+                                        if isinstance(brawler_data, dict):
+                                            mode_stats_data['brawlers'][brawler]['picks'] += brawler_data.get('picks', 0)
+                                            mode_stats_data['brawlers'][brawler]['wins'] += brawler_data.get('wins', 0)
+        
+        if mode_stats_data['total_games'] == 0:
+            return f"Mode {mode_display} not found or no data available", 404
+        
+        
+        # Calculate best brawlers
+        best_brawlers = []
+        for brawler, brawler_data in mode_stats_data['brawlers'].items():
+            if brawler_data['picks'] >= 1:
+                win_rate = (brawler_data['wins'] / brawler_data['picks'] * 100) if brawler_data['picks'] > 0 else 0
+                best_brawlers.append({
+                    'name': brawler,
+                    'picks': brawler_data['picks'],
+                    'wins': brawler_data['wins'],
+                    'win_rate': win_rate
+                })
+        
+        best_brawlers.sort(key=lambda x: x['win_rate'], reverse=True)
+        
+        # Get maps list
+        maps_list = []
+        for map_name, map_data in mode_stats_data['maps'].items():
+            maps_list.append({
+                'name': map_name,
+                'picks': map_data['games']
+            })
+        
+        maps_list.sort(key=lambda x: x['picks'], reverse=True)
+        
+        # Calculate total picks for meta score
+        total_picks = sum(b['picks'] for b in best_brawlers)
+        
+        
+        return render_template('mode_detail.html',
+                            user=session.get('discord_tag', 'Unknown'),
+                            mode_name=mode_display,
+                            total_games=mode_stats_data['total_games'],
+                            total_maps=len(mode_stats_data['maps']),
+                            total_brawlers=len(mode_stats_data['brawlers']),
+                            best_brawlers=best_brawlers,
+                            maps=maps_list,
+                            total_picks=total_picks)
     
-    matches_df, teams_data, _, _, _ = get_cached_data()
+    except Exception as e:
+        print(f"❌ MODE DETAIL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Mode detail error: {e}", 500
+
+@app.route('/player/<path:player_tag>')
+def player_page(player_tag):
+    """Display individual player statistics - adapts to view mode"""
+    # Decode the URL-encoded tag
+    player_tag = unquote(player_tag)
     
-    if matches_df is None:
-        return "Error loading data", 500
+    # Normalize tag
+    if not player_tag.startswith('#'):
+        player_tag = '#' + player_tag
+    player_tag = player_tag.upper().replace('0', 'O')
     
-    # Collect stats for this mode
-    mode_stats = {
-        'total_games': 0,
-        'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0}),
-        'maps': defaultdict(lambda: {'games': 0})
-    }
+    _, data, _, _, _ = get_cached_data()
     
-    for team_name, team in teams_data.items():
-        for mode, mode_data in team['modes'].items():
-            if mode.lower().replace(' ', '_') != mode_name.lower():
+    # Get user's view mode
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = str(session.get('discord_id', 'test_user'))
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+    
+    if view_mode == 'offseason':
+        # OFF-SEASON MODE: Use players_data directly
+        players_data = data
+        
+        if player_tag not in players_data:
+            return f"Player not found: {player_tag}", 404
+        
+        player_data = players_data[player_tag]
+        
+        # Find favorite (most played) brawler
+        favorite_brawler = None
+        if player_data['brawlers']:
+            favorite_brawler_name = max(
+                player_data['brawlers'].items(),
+                key=lambda x: x[1]['picks']
+            )
+            favorite_brawler = {
+                'name': favorite_brawler_name[0],
+                'picks': favorite_brawler_name[1]['picks'],
+                'wins': favorite_brawler_name[1]['wins']
+            }
+        else:
+            favorite_brawler = {
+                'name': 'None',
+                'picks': 0,
+                'wins': 0
+            }
+        
+        # NEW: Enrich teammates_seen with favorite brawler info
+        teammates_with_brawlers = {}
+        for teammate_tag, teammate_stats in player_data['teammates_seen'].items():
+            teammate_info = {
+                'name': teammate_stats['name'],
+                'matches': teammate_stats['matches'],
+                'wins': teammate_stats['wins']
+            }
+            
+            # Get teammate's favorite brawler
+            if teammate_tag in players_data:
+                teammate_player = players_data[teammate_tag]
+                if teammate_player.get('brawlers'):
+                    fav_brawler = max(
+                        teammate_player['brawlers'].items(),
+                        key=lambda x: x[1]['picks']
+                    )
+                    teammate_info['favorite_brawler'] = fav_brawler[0]
+                else:
+                    teammate_info['favorite_brawler'] = 'default'
+            else:
+                teammate_info['favorite_brawler'] = 'default'
+            
+            teammates_with_brawlers[teammate_tag] = teammate_info
+        
+        # Build player object for template
+        player = {
+            'name': player_data['name'],
+            'tag': player_tag,
+            'region': player_data['region'],
+            'matches': player_data['matches'],
+            'wins': player_data['wins'],
+            'losses': player_data['losses'],
+            'star_player': player_data['star_player'],
+            'favorite_brawler': favorite_brawler,
+            'brawlers': player_data['brawlers'],
+            'modes': player_data['modes'],
+            'teammates_seen': teammates_with_brawlers,  # UPDATED
+            'opponents_seen': player_data['opponents_seen']
+        }
+        
+        return render_template('player_offseason.html',
+                             user=session['discord_tag'],
+                             player=player)
+    
+    else:
+        # SEASON MODE: Search through teams (existing logic)
+        teams_data = data
+        
+        player_data = None
+        team_name = None
+        
+        for t_name, team in teams_data.items():
+            if player_tag in team['players']:
+                player_data = team['players'][player_tag]
+                team_name = t_name
+                break
+        
+        if not player_data:
+            return f"Player not found: {player_tag}", 404
+        
+        # Find favorite (most played) brawler
+        favorite_brawler = None
+        if player_data['brawlers']:
+            favorite_brawler_name = max(
+                player_data['brawlers'].items(),
+                key=lambda x: x[1]['picks']
+            )
+            favorite_brawler = {
+                'name': favorite_brawler_name[0],
+                'picks': favorite_brawler_name[1]['picks'],
+                'wins': favorite_brawler_name[1]['wins']
+            }
+        else:
+            favorite_brawler = {
+                'name': 'None',
+                'picks': 0,
+                'wins': 0
+            }
+        
+        # Build player object for template
+        player = {
+            'name': player_data['name'],
+            'tag': player_tag,
+            'team_name': team_name,
+            'region': teams_data[team_name]['region'],
+            'matches': player_data['matches'],
+            'wins': player_data['wins'],
+            'star_player': player_data['star_player'],
+            'favorite_brawler': favorite_brawler,
+            'brawlers': player_data['brawlers']
+        }
+        
+        return render_template('player.html',
+                             user=session['discord_tag'],
+                             player=player)
+
+
+
+# Add this at the top with your other cache variables
+_trios_cache = {
+    'data': None,
+    'timestamp': None,
+    'cache_key': None
+}
+
+TRIOS_CACHE_DURATION = 300  # 5 minutes
+
+def get_cached_trios():
+    """Get cached trio data or recalculate"""
+    current_cache_key = get_cache_key()
+    current_time = time.time()
+    
+    # Check if cache is valid
+    if (_trios_cache['data'] is not None and 
+        _trios_cache['timestamp'] is not None and
+        _trios_cache['cache_key'] == current_cache_key and
+        current_time - _trios_cache['timestamp'] < TRIOS_CACHE_DURATION):
+        
+        return _trios_cache['data']
+    
+    # Cache is invalid, recalculate
+    print("⚙ Calculating trios...")
+    start_time = time.time()
+    
+    _, data, _, _, _ = get_cached_data()
+    players_data = data
+    
+    # Load matches file
+    matches_file = 'matches_off.xlsx'
+    if not os.path.exists(matches_file):
+        return None
+    
+    try:
+        matches_df = pd.read_excel(matches_file)
+    except Exception as e:
+        print(f"Error loading matches: {e}")
+        return None
+    
+    # Calculate trios
+    trios_dict = {}
+    
+    def normalize_tag(tag):
+        if not tag or tag == 'NAN':
+            return None
+        tag = str(tag).strip().upper().replace('0', 'O')
+        if not tag.startswith('#'):
+            tag = '#' + tag
+        return tag
+    
+    for _, match in matches_df.iterrows():
+        mode = str(match.get('mode', 'Unknown'))
+        
+        if mode not in VALID_MODES:
+            continue
+        
+        for team_prefix in ['team1', 'team2']:
+            team_tags = []
+            for i in range(1, 4):
+                tag = normalize_tag(match.get(f'{team_prefix}_player{i}_tag', ''))
+                if tag and tag in players_data:
+                    team_tags.append(tag)
+            
+            if len(team_tags) == 3:
+                trio_key = tuple(sorted(team_tags))
+                
+                if trio_key not in trios_dict:
+                    trios_dict[trio_key] = {'games': 0, 'wins': 0}
+                
+                trios_dict[trio_key]['games'] += 1
+                
+                winner_name = str(match.get('winner', '')).strip()
+                if winner_name == team_prefix:
+                    trios_dict[trio_key]['wins'] += 1
+    
+    # Update cache
+    _trios_cache['data'] = (trios_dict, players_data)
+    _trios_cache['timestamp'] = current_time
+    _trios_cache['cache_key'] = current_cache_key
+    
+    elapsed = time.time() - start_time
+    
+    return _trios_cache['data']
+
+
+@app.route('/possible-teams')
+def possible_teams_page():
+    """Show possible team combinations based on teammate frequency"""
+    sort_by = request.args.get('sort', 'games')
+    region = request.args.get('region', 'ALL').upper()
+    
+    # Get user's view mode
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = str(session.get('discord_id', 'test_user'))
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+    
+    if view_mode != 'offseason':
+        return "This feature is only available in off-season mode", 404
+    
+    # Get cached trios
+    cached_result = get_cached_trios()
+    if cached_result is None:
+        return "Error loading trio data", 500
+    
+    trios_dict, players_data = cached_result
+    
+    # Build trios list with calculated stats
+    all_trios = []
+    
+    for trio_key, trio_stats in trios_dict.items():
+        tag1, tag2, tag3 = trio_key
+        
+        # Skip if any player not in our region filter
+        if region != 'ALL':
+            if not all(players_data.get(tag, {}).get('region') == region for tag in trio_key):
+                continue
+        
+        trio_games = trio_stats['games']
+        trio_wins = trio_stats['wins']
+        
+        # Minimum 3 games together
+        if trio_games >= 3:
+            player1 = players_data.get(tag1)
+            player2 = players_data.get(tag2)
+            player3 = players_data.get(tag3)
+            
+            if not all([player1, player2, player3]):
                 continue
             
-            mode_display = mode  # Use the actual mode name from data
+            trio_wr = (trio_wins / trio_games * 100) if trio_games > 0 else 0
+            player_region = player1['region']
             
-            # Count games per map
-            for map_name, map_data in mode_data['maps'].items():
-                # Use 'matches' key instead of 'picks'
-                games = map_data.get('matches', 0)
-                mode_stats['total_games'] += games
-                mode_stats['maps'][map_name]['games'] += games
-                
-                # Collect brawler stats
-                for brawler, brawler_data in map_data.get('brawlers', {}).items():
-                    mode_stats['brawlers'][brawler]['picks'] += brawler_data.get('picks', 0)
-                    mode_stats['brawlers'][brawler]['wins'] += brawler_data.get('wins', 0)
-    
-    if mode_stats['total_games'] == 0:
-        return "Mode not found or no data available", 404
-    
-    # Calculate best brawlers (min 5 picks)
-    best_brawlers = []
-    for brawler, data in mode_stats['brawlers'].items():
-        if data['picks'] >= 1:
-            win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            best_brawlers.append({
-                'name': brawler,
-                'picks': data['picks'],
-                'wins': data['wins'],
-                'win_rate': win_rate
+            all_trios.append({
+                'players': [player1['name'], player2['name'], player3['name']],
+                'tags': [tag1, tag2, tag3],
+                'region': player_region,
+                'games_together': trio_games,
+                'trio_winrate': trio_wr,
+                'trio_wins': trio_wins,
             })
     
-    best_brawlers.sort(key=lambda x: x['win_rate'], reverse=True)
+    # Sort trios
+    if sort_by == 'games':
+        all_trios.sort(key=lambda x: x['games_together'], reverse=True)
+    else:  # winrate
+        all_trios = [t for t in all_trios if t['games_together'] >= 3]
+        all_trios.sort(key=lambda x: x['trio_winrate'], reverse=True)
     
-    # Get maps list
-    maps_list = []
-    for map_name, data in mode_stats['maps'].items():
-        maps_list.append({
-            'name': map_name,
-            'picks': data['games']
+    # Filter to ensure each player appears only once - LIMIT TO TOP 10
+    used_players = set()
+    unique_trios = []
+    
+    for trio in all_trios:
+        if not any(tag in used_players for tag in trio['tags']):
+            unique_trios.append(trio)
+            used_players.update(trio['tags'])
+            
+            if len(unique_trios) >= 10:
+                break
+    
+    return render_template('possible_teams.html',
+                         user=session['discord_tag'],
+                         trios=unique_trios,
+                         sort_by=sort_by,
+                         current_region=region,
+                         zip=zip)
+
+
+
+@app.route('/players')
+def players_page():
+    """Players overview page - only available in offseason mode"""
+    _, data, _, _, _ = get_cached_data()
+    
+    # Get user's view mode
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = str(session.get('discord_id', 'test_user'))
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+    
+    if view_mode != 'offseason':
+        return "This feature is only available in off-season mode", 404
+    
+    players_data = data  # In offseason mode, data is players_data
+    
+    # Build players list with their stats
+    players_list = []
+    
+    for player_tag, player_info in players_data.items():
+        # Find most played brawler
+        most_played_brawler = 'Shelly'  # Default
+        if player_info.get('brawlers'):
+            most_played = max(
+                player_info['brawlers'].items(),
+                key=lambda x: x[1]['picks']
+            )
+            most_played_brawler = most_played[0]
+        
+        # Calculate win rate
+        win_rate = (player_info['wins'] / player_info['matches'] * 100) if player_info['matches'] > 0 else 0
+        
+        players_list.append({
+            'name': player_info['name'],
+            'tag': player_tag,
+            'region': player_info['region'],
+            'games': player_info['matches'],
+            'wins': player_info['wins'],
+            'win_rate': win_rate,
+            'most_played_brawler': most_played_brawler
         })
     
-    maps_list.sort(key=lambda x: x['picks'], reverse=True)
+    # Sort by total games (most active players first)
+    players_list.sort(key=lambda x: x['games'], reverse=True)
     
-    # Calculate total picks for meta score
-    total_picks = sum(b['picks'] for b in best_brawlers)
-
-    return render_template('mode_detail.html',
-                        user=session['discord_tag'],
-                        mode_name=mode_display,
-                        total_games=mode_stats['total_games'],
-                        total_maps=len(mode_stats['maps']),
-                        total_brawlers=len(mode_stats['brawlers']),
-                        best_brawlers=best_brawlers,
-                        maps=maps_list,
-                        total_picks=total_picks)
+    return render_template('players.html',
+                         user=session['discord_tag'],
+                         players=players_list)
 
 
 @app.route('/maps/<map_name>')
 def map_detail_page(map_name):
     """Detailed map statistics page"""
-    # Convert URL format back to display format
-    map_display = map_name.replace('_', ' ').title()
-    
-    matches_df, teams_data, _, _, _ = get_cached_data()
-    
-    if matches_df is None:
-        return "Error loading data", 500
-    
-    # Collect stats for this map
-    map_stats = {
-        'total_games': 0,
-        'mode': None,
-        'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0})
-    }
-    
-    for team_name, team in teams_data.items():
-        for mode, mode_data in team['modes'].items():
-            for map_n, map_data in mode_data.get('maps', {}).items():
-                # Match the map name (case-insensitive, handle formatting)
-                if map_n.lower().replace(' ', '_').replace("'", '').replace('-', '_') != map_name.lower():
+    try:
+        # Convert URL format back to display format
+        map_display = map_name.replace('_', ' ').title()
+        
+        
+        matches_df, data, _, _, _ = get_cached_data()
+        
+        if data is None or not data:
+            return "Error loading data", 500
+        
+        # Get user's view mode
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = str(session.get('discord_id', 'test_user'))
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+        
+        # Collect stats for this map
+        map_stats = {
+            'total_games': 0,
+            'mode': None,
+            'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0})
+        }
+        
+        if view_mode == 'offseason':
+            # OFF-SEASON: Use players_data
+            for tag, player in data.items():
+                if not isinstance(player, dict):
                     continue
                 
-                map_display = map_n  # Use the actual map name from data
-                map_stats['mode'] = mode
-                # Use 'matches' key instead of 'picks'
-                map_stats['total_games'] += map_data.get('matches', 0)
+                player_modes = player.get('modes', {})
+                if not isinstance(player_modes, dict):
+                    continue
                 
-                # Collect brawler stats
-                for brawler, brawler_data in map_data.get('brawlers', {}).items():
-                    map_stats['brawlers'][brawler]['picks'] += brawler_data.get('picks', 0)
-                    map_stats['brawlers'][brawler]['wins'] += brawler_data.get('wins', 0)
+                for mode, mode_data in player_modes.items():
+                    if not isinstance(mode_data, dict):
+                        continue
+                    
+                    mode_maps = mode_data.get('maps', {})
+                    if not isinstance(mode_maps, dict):
+                        continue
+                    
+                    for map_n, map_data_item in mode_maps.items():
+                        if map_n.lower().replace(' ', '_').replace("'", '').replace('-', '_') != map_name.lower():
+                            continue
+                        
+                        if not isinstance(map_data_item, dict):
+                            continue
+                        
+                        map_display = map_n
+                        map_stats['mode'] = mode
+                        map_stats['total_games'] += map_data_item.get('matches', 0)
+                        
+                        map_brawlers = map_data_item.get('brawlers', {})
+                        if isinstance(map_brawlers, dict):
+                            for brawler, brawler_data in map_brawlers.items():
+                                if isinstance(brawler_data, dict):
+                                    map_stats['brawlers'][brawler]['picks'] += brawler_data.get('picks', 0)
+                                    map_stats['brawlers'][brawler]['wins'] += brawler_data.get('wins', 0)
+        else:
+            # SEASON: Use teams_data
+            for team_name, team in data.items():
+                if not isinstance(team, dict):
+                    continue
+                
+                team_modes = team.get('modes', {})
+                if not isinstance(team_modes, dict):
+                    continue
+                
+                for mode, mode_data in team_modes.items():
+                    if not isinstance(mode_data, dict):
+                        continue
+                    
+                    mode_maps = mode_data.get('maps', {})
+                    if not isinstance(mode_maps, dict):
+                        continue
+                    
+                    for map_n, map_data_item in mode_maps.items():
+                        if map_n.lower().replace(' ', '_').replace("'", '').replace('-', '_') != map_name.lower():
+                            continue
+                        
+                        if not isinstance(map_data_item, dict):
+                            continue
+                        
+                        map_display = map_n
+                        map_stats['mode'] = mode
+                        map_stats['total_games'] += map_data_item.get('matches', 0)
+                        
+                        map_brawlers = map_data_item.get('brawlers', {})
+                        if isinstance(map_brawlers, dict):
+                            for brawler, brawler_data in map_brawlers.items():
+                                if isinstance(brawler_data, dict):
+                                    map_stats['brawlers'][brawler]['picks'] += brawler_data.get('picks', 0)
+                                    map_stats['brawlers'][brawler]['wins'] += brawler_data.get('wins', 0)
+        
+        if map_stats['total_games'] == 0:
+            return f"Map {map_display} not found or no data available", 404
+        
+        
+        # Calculate best brawlers
+        best_brawlers = []
+        for brawler, brawler_data in map_stats['brawlers'].items():
+            if brawler_data['picks'] >= 1:
+                win_rate = (brawler_data['wins'] / brawler_data['picks'] * 100) if brawler_data['picks'] > 0 else 0
+                best_brawlers.append({
+                    'name': brawler,
+                    'picks': brawler_data['picks'],
+                    'wins': brawler_data['wins'],
+                    'win_rate': win_rate
+                })
+        
+        best_brawlers.sort(key=lambda x: x['win_rate'], reverse=True)
+        
+        # Calculate total picks
+        total_picks = sum(b['picks'] for b in best_brawlers)
+        
+        
+        return render_template('map_detail.html',
+                            user=session.get('discord_tag', 'Unknown'),
+                            map_name=map_display,
+                            mode_name=map_stats['mode'],
+                            total_games=map_stats['total_games'],
+                            total_brawlers=len(map_stats['brawlers']),
+                            best_brawlers=best_brawlers,
+                            total_picks=total_picks)
     
-    if map_stats['total_games'] == 0:
-        return "Map not found or no data available", 404
-    
-    # Calculate best brawlers (min 3 picks for maps since they have less data)
-    best_brawlers = []
-    for brawler, data in map_stats['brawlers'].items():
-        if data['picks'] >= 1:
-            win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            best_brawlers.append({
-                'name': brawler,
-                'picks': data['picks'],
-                'wins': data['wins'],
-                'win_rate': win_rate
-            })
-    
-    # Calculate total picks for meta score
-    total_picks = sum(b['picks'] for b in best_brawlers)
-
-    return render_template('map_detail.html',
-                        user=session['discord_tag'],
-                        map_name=map_display,
-                        mode_name=map_stats['mode'],
-                        total_games=map_stats['total_games'],
-                        total_brawlers=len(map_stats['brawlers']),
-                        best_brawlers=best_brawlers,
-                        total_picks=total_picks)
-
-# Add these routes to your Flask app (around line 950, after the brawler_detail_page route)
-# Add these routes to your Flask app (around line 950, after the brawler_detail_page route)
+    except Exception as e:
+        print(f"❌ MAP DETAIL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Map detail error: {e}", 500
 
 @app.route('/brawler/<brawler_name>/mode/<mode_name>')
 def brawler_mode_page(brawler_name, mode_name):
     """Brawler performance in a specific mode"""
-    matches_df, teams_data, _, _, _ = get_cached_data()
-    
-    if matches_df is None:
-        return "Error loading data", 500
-    
-    # Convert URL format to display format
-    mode_display = mode_name.replace('_', ' ').title()
-    
-    # Collect stats for this brawler in this mode
-    brawler_mode_stats = {
-        'picks': 0,
-        'wins': 0,
-        'maps': []
-    }
-    
-    # Track series to avoid double-counting
-    series_tracking = {}
-    
-    for _, match in matches_df.iterrows():
-        mode = str(match['mode'])
+    try:
+        matches_df, data, region_stats, _, _ = get_cached_data()
         
-        # Skip if not the right mode
-        if mode.lower().replace(' ', '_') != mode_name.lower():
-            continue
         
-        mode_display = mode  # Use actual mode name from data
+        if data is None or not data:
+            return "Error loading data", 500
         
-        # Create series ID
-        team1 = match['team1_name']
-        team2 = match['team2_name']
-        teams_sorted = tuple(sorted([team1, team2]))
-        map_name = str(match['map'])
+        # Convert URL format to display format
+        mode_display = mode_name.replace('_', ' ').title()
         
-        team1_comp = sorted([
-            str(match['team1_player1_brawler']),
-            str(match['team1_player2_brawler']),
-            str(match['team1_player3_brawler'])
-        ])
-        team2_comp = sorted([
-            str(match['team2_player1_brawler']),
-            str(match['team2_player2_brawler']),
-            str(match['team2_player3_brawler'])
-        ])
+        # Get user's view mode
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = str(session.get('discord_id', 'test_user'))
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
         
-        comps_sorted = tuple(sorted([tuple(team1_comp), tuple(team2_comp)]))
+        # Initialize brawler mode stats
+        brawler_mode_stats = {
+            'picks': 0,
+            'wins': 0
+        }
         
-        battle_time = match.get('battle_time')
-        if pd.notna(battle_time):
-            time_rounded = pd.Timestamp(battle_time).floor('30min')
+        map_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
+        teammates_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
+        opponent_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
+        
+        if view_mode == 'offseason':
+            # OFF-SEASON MODE: Use players_data
+            players_data = data
+            
+            for player_tag, player in players_data.items():
+                if not isinstance(player, dict):
+                    continue
+                
+                player_modes = player.get('modes', {})
+                if not isinstance(player_modes, dict):
+                    continue
+                
+                for mode, mode_data in player_modes.items():
+                    if mode.lower().replace(' ', '_') != mode_name.lower() or not isinstance(mode_data, dict):
+                        continue
+                    
+                    mode_display = mode
+                    
+                    mode_maps = mode_data.get('maps', {})
+                    if isinstance(mode_maps, dict):
+                        for map_name_iter, map_data in mode_maps.items():
+                            if not isinstance(map_data, dict):
+                                continue
+                            
+                            map_brawlers = map_data.get('brawlers', {})
+                            if isinstance(map_brawlers, dict) and brawler_name in map_brawlers:
+                                map_brawler_data = map_brawlers[brawler_name]
+                                if isinstance(map_brawler_data, dict):
+                                    picks = map_brawler_data.get('picks', 0)
+                                    wins = map_brawler_data.get('wins', 0)
+                                    
+                                    brawler_mode_stats['picks'] += picks
+                                    brawler_mode_stats['wins'] += wins
+                                    map_stats[map_name_iter]['picks'] += picks
+                                    map_stats[map_name_iter]['wins'] += wins
         else:
-            time_rounded = str(_)
+            # SEASON MODE: Use teams_data
+            teams_data = data
+            
+            for team_name, team in teams_data.items():
+                if not isinstance(team, dict):
+                    continue
+                
+                team_modes = team.get('modes', {})
+                if not isinstance(team_modes, dict):
+                    continue
+                
+                for mode, mode_data in team_modes.items():
+                    if mode.lower().replace(' ', '_') != mode_name.lower() or not isinstance(mode_data, dict):
+                        continue
+                    
+                    mode_display = mode
+                    
+                    mode_maps = mode_data.get('maps', {})
+                    if isinstance(mode_maps, dict):
+                        for map_name_iter, map_data in mode_maps.items():
+                            if not isinstance(map_data, dict):
+                                continue
+                            
+                            map_brawlers = map_data.get('brawlers', {})
+                            if isinstance(map_brawlers, dict) and brawler_name in map_brawlers:
+                                map_brawler_data = map_brawlers[brawler_name]
+                                if isinstance(map_brawler_data, dict):
+                                    picks = map_brawler_data.get('picks', 0)
+                                    wins = map_brawler_data.get('wins', 0)
+                                    
+                                    brawler_mode_stats['picks'] += picks
+                                    brawler_mode_stats['wins'] += wins
+                                    map_stats[map_name_iter]['picks'] += picks
+                                    map_stats[map_name_iter]['wins'] += wins
         
-        series_id = f"{teams_sorted}_{mode}_{map_name}_{comps_sorted}_{time_rounded}"
+        if brawler_mode_stats['picks'] == 0:
+            return f"No data available for {brawler_name} in {mode_display}", 404
         
-        for team_prefix in ['team1', 'team2']:
-            team_brawlers = [
-                str(match[f'{team_prefix}_player1_brawler']),
-                str(match[f'{team_prefix}_player2_brawler']),
-                str(match[f'{team_prefix}_player3_brawler'])
-            ]
-            
-            if brawler_name not in team_brawlers:
-                continue
-            
-            # Check if already counted
-            if series_id not in series_tracking:
-                series_tracking[series_id] = {}
-            
-            if map_name not in series_tracking[series_id]:
-                series_tracking[series_id][map_name] = set()
-            
-            if brawler_name in series_tracking[series_id][map_name]:
-                continue
-            
-            series_tracking[series_id][map_name].add(brawler_name)
-            
-            # Update stats
-            winner = str(match['winner'])
-            team_name = match[f'{team_prefix}_name']
-            is_winner = (winner == team_name)
-            
-            brawler_mode_stats['picks'] += 1
-            if is_winner:
-                brawler_mode_stats['wins'] += 1
-    
-    if brawler_mode_stats['picks'] == 0:
-        return "No data available for this combination", 404
-    
-    # Collect map stats from teams_data
-    map_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
-    
-    for team_name, team in teams_data.items():
-        for mode, mode_data in team['modes'].items():
-            if mode.lower().replace(' ', '_') != mode_name.lower():
-                continue
-            
-            for map_name, map_data in mode_data['maps'].items():
-                if brawler_name in map_data.get('brawlers', {}):
-                    brawler_data = map_data['brawlers'][brawler_name]
-                    map_stats[map_name]['picks'] += brawler_data['picks']
-                    map_stats[map_name]['wins'] += brawler_data['wins']
-    
-    # Convert to list and calculate win rates
-    maps = []
-    for map_name, data in map_stats.items():
-        if data['picks'] >= 3:  # Minimum 3 picks
-            win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            maps.append({
-                'name': map_name,
-                'picks': data['picks'],
-                'wins': data['wins'],
-                'win_rate': win_rate
-            })
-    
-    maps.sort(key=lambda x: x['win_rate'], reverse=True)
-    
-    # Track teammates and opponents for this brawler in this mode
-    teammates_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
-    opponent_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
-    
-    # Reset series tracking for teammates/opponents
-    series_tracking_synergy = {}
-    
-    for _, match in matches_df.iterrows():
-        mode = str(match['mode'])
         
-        # Skip if not the right mode
-        if mode.lower().replace(' ', '_') != mode_name.lower():
-            continue
+        # Convert map stats to list
+        maps = []
+        for map_name, data_item in map_stats.items():
+            if data_item['picks'] >= 1:
+                win_rate = (data_item['wins'] / data_item['picks'] * 100) if data_item['picks'] > 0 else 0
+                maps.append({
+                    'name': map_name,
+                    'picks': data_item['picks'],
+                    'wins': data_item['wins'],
+                    'win_rate': win_rate
+                })
+        maps.sort(key=lambda x: x['win_rate'], reverse=True)
         
-        # Create series ID
-        team1 = match['team1_name']
-        team2 = match['team2_name']
-        teams_sorted = tuple(sorted([team1, team2]))
-        map_name = str(match['map'])
+        overall_winrate = (brawler_mode_stats['wins'] / brawler_mode_stats['picks'] * 100) if brawler_mode_stats['picks'] > 0 else 0
         
-        team1_comp = sorted([
-            str(match['team1_player1_brawler']),
-            str(match['team1_player2_brawler']),
-            str(match['team1_player3_brawler'])
-        ])
-        team2_comp = sorted([
-            str(match['team2_player1_brawler']),
-            str(match['team2_player2_brawler']),
-            str(match['team2_player3_brawler'])
-        ])
+        # Get MODE-SPECIFIC synergies
+        best_teammates, best_matchups, worst_matchups = get_brawler_synergies_filtered(
+            brawler_name, 
+            mode_filter=mode_name
+        )
         
-        comps_sorted = tuple(sorted([tuple(team1_comp), tuple(team2_comp)]))
-        
-        battle_time = match.get('battle_time')
-        if pd.notna(battle_time):
-            time_rounded = pd.Timestamp(battle_time).floor('30min')
-        else:
-            time_rounded = str(_)
-        
-        series_id = f"{teams_sorted}_{mode}_{map_name}_{comps_sorted}_{time_rounded}"
-        
-        if series_id not in series_tracking_synergy:
-            series_tracking_synergy[series_id] = set()
-        
-        for team_prefix in ['team1', 'team2']:
-            team_brawlers = [
-                str(match[f'{team_prefix}_player1_brawler']),
-                str(match[f'{team_prefix}_player2_brawler']),
-                str(match[f'{team_prefix}_player3_brawler'])
-            ]
-            
-            if brawler_name not in team_brawlers:
-                continue
-            
-            # Check if already counted
-            if brawler_name in series_tracking_synergy[series_id]:
-                continue
-            
-            series_tracking_synergy[series_id].add(brawler_name)
-            
-            # Update stats
-            winner = str(match['winner'])
-            team_name = match[f'{team_prefix}_name']
-            is_winner = (winner == team_name)
-            
-            # Track teammates
-            for teammate in team_brawlers:
-                if teammate != brawler_name and teammate not in ['nan', '', 'None']:
-                    teammates_stats[teammate]['picks'] += 1
-                    if is_winner:
-                        teammates_stats[teammate]['wins'] += 1
-            
-            # Track opponents
-            enemy_prefix = 'team2' if team_prefix == 'team1' else 'team1'
-            enemy_brawlers = [
-                str(match[f'{enemy_prefix}_player1_brawler']),
-                str(match[f'{enemy_prefix}_player2_brawler']),
-                str(match[f'{enemy_prefix}_player3_brawler'])
-            ]
-            
-            for opponent in enemy_brawlers:
-                if opponent not in ['nan', '', 'None']:
-                    opponent_stats[opponent]['picks'] += 1
-                    if is_winner:
-                        opponent_stats[opponent]['wins'] += 1
+        return render_template('brawler_mode.html',
+                             user=session.get('discord_tag', 'Unknown'),
+                             brawler_name=brawler_name,
+                             mode_name=mode_display,
+                             stats=brawler_mode_stats,
+                             overall_winrate=overall_winrate,
+                             maps=maps,
+                             best_teammates=best_teammates[:10],
+                             best_matchups=best_matchups,
+                             worst_matchups=worst_matchups)
     
-    # Best teammates (min 3 games together)
-    best_teammates = []
-    for teammate, data in teammates_stats.items():
-        if data['picks'] >= 3:
-            win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            best_teammates.append({
-                'name': teammate,
-                'picks': data['picks'],
-                'wins': data['wins'],
-                'win_rate': win_rate
-            })
-    best_teammates.sort(key=lambda x: x['win_rate'], reverse=True)
-    
-    # Calculate all matchups
-    all_matchups = []
-    for opponent, data in opponent_stats.items():
-        if data['picks'] >= 5:
-            win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            all_matchups.append({
-                'name': opponent,
-                'picks': data['picks'],
-                'wins': data['wins'],
-                'win_rate': win_rate
-            })
-    
-    all_matchups.sort(key=lambda x: x['win_rate'], reverse=True)
-    
-    # Best matchups (top 10 highest win rates)
-    best_matchups = all_matchups[:10]
-    
-    # Worst matchups (bottom 10 lowest win rates)
-    worst_matchups = all_matchups[-10:]
-    worst_matchups.reverse()
-    
-    overall_winrate = (brawler_mode_stats['wins'] / brawler_mode_stats['picks'] * 100) if brawler_mode_stats['picks'] > 0 else 0
-    
-    return render_template('brawler_mode.html',
-                         user=session['discord_tag'],
-                         brawler_name=brawler_name,
-                         mode_name=mode_display,
-                         stats=brawler_mode_stats,
-                         overall_winrate=overall_winrate,
-                         maps=maps,
-                         best_teammates=best_teammates[:10],
-                         best_matchups=best_matchups,
-                         worst_matchups=worst_matchups)
+    except Exception as e:
+        print(f"❌ BRAWLER-MODE ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Brawler-mode error: {e}", 500
 
 
 @app.route('/brawler/<brawler_name>/map/<map_name>')
 def brawler_map_page(brawler_name, map_name):
     """Brawler performance on a specific map"""
-    matches_df, teams_data, _, _, _ = get_cached_data()
-    
-    if matches_df is None:
-        return "Error loading data", 500
-    
-    # Convert URL format to display format
-    map_display = map_name.replace('_', ' ').title()
-    
-    # Collect stats for this brawler on this map
-    brawler_map_stats = {
-        'picks': 0,
-        'wins': 0,
-        'mode': None
-    }
-    
-    # Track teammates and opponents
-    teammates_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
-    opponent_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
-    
-    # Track series to avoid double-counting
-    series_tracking = {}
-    
-    for _, match in matches_df.iterrows():
-        match_map = str(match['map'])
+    try:
+        matches_df, data, region_stats, _, _ = get_cached_data()
         
-        # Skip if not the right map
-        if match_map.lower().replace(' ', '_').replace("'", '').replace('-', '_') != map_name.lower():
-            continue
         
-        map_display = match_map  # Use actual map name
-        brawler_map_stats['mode'] = str(match['mode'])
+        if data is None or not data:
+            return "Error loading data", 500
         
-        # Create series ID
-        team1 = match['team1_name']
-        team2 = match['team2_name']
-        teams_sorted = tuple(sorted([team1, team2]))
-        mode = str(match['mode'])
+        # Convert URL format to display format
+        map_display = map_name.replace('_', ' ').title()
         
-        team1_comp = sorted([
-            str(match['team1_player1_brawler']),
-            str(match['team1_player2_brawler']),
-            str(match['team1_player3_brawler'])
-        ])
-        team2_comp = sorted([
-            str(match['team2_player1_brawler']),
-            str(match['team2_player2_brawler']),
-            str(match['team2_player3_brawler'])
-        ])
+        # Get user's view mode
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = str(session.get('discord_id', 'test_user'))
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
         
-        comps_sorted = tuple(sorted([tuple(team1_comp), tuple(team2_comp)]))
+        # Initialize brawler map stats
+        brawler_map_stats = {
+            'picks': 0,
+            'wins': 0,
+            'mode': None
+        }
         
-        battle_time = match.get('battle_time')
-        if pd.notna(battle_time):
-            time_rounded = pd.Timestamp(battle_time).floor('30min')
+        if view_mode == 'offseason':
+            # OFF-SEASON MODE: Use players_data
+            players_data = data
+            
+            for player_tag, player in players_data.items():
+                if not isinstance(player, dict):
+                    continue
+                
+                player_modes = player.get('modes', {})
+                if not isinstance(player_modes, dict):
+                    continue
+                
+                for mode, mode_data in player_modes.items():
+                    if not isinstance(mode_data, dict):
+                        continue
+                    
+                    mode_maps = mode_data.get('maps', {})
+                    if not isinstance(mode_maps, dict):
+                        continue
+                    
+                    for map_n, map_data in mode_maps.items():
+                        if map_n.lower().replace(' ', '_').replace("'", '').replace('-', '_') != map_name.lower():
+                            continue
+                        
+                        if not isinstance(map_data, dict):
+                            continue
+                        
+                        map_display = map_n
+                        brawler_map_stats['mode'] = mode
+                        
+                        map_brawlers = map_data.get('brawlers', {})
+                        if isinstance(map_brawlers, dict) and brawler_name in map_brawlers:
+                            map_brawler_data = map_brawlers[brawler_name]
+                            if isinstance(map_brawler_data, dict):
+                                brawler_map_stats['picks'] += map_brawler_data.get('picks', 0)
+                                brawler_map_stats['wins'] += map_brawler_data.get('wins', 0)
         else:
-            time_rounded = str(_)
+            # SEASON MODE: Use teams_data
+            teams_data = data
+            
+            for team_name, team in teams_data.items():
+                if not isinstance(team, dict):
+                    continue
+                
+                team_modes = team.get('modes', {})
+                if not isinstance(team_modes, dict):
+                    continue
+                
+                for mode, mode_data in team_modes.items():
+                    if not isinstance(mode_data, dict):
+                        continue
+                    
+                    mode_maps = mode_data.get('maps', {})
+                    if not isinstance(mode_maps, dict):
+                        continue
+                    
+                    for map_n, map_data in mode_maps.items():
+                        if map_n.lower().replace(' ', '_').replace("'", '').replace('-', '_') != map_name.lower():
+                            continue
+                        
+                        if not isinstance(map_data, dict):
+                            continue
+                        
+                        map_display = map_n
+                        brawler_map_stats['mode'] = mode
+                        
+                        map_brawlers = map_data.get('brawlers', {})
+                        if isinstance(map_brawlers, dict) and brawler_name in map_brawlers:
+                            map_brawler_data = map_brawlers[brawler_name]
+                            if isinstance(map_brawler_data, dict):
+                                brawler_map_stats['picks'] += map_brawler_data.get('picks', 0)
+                                brawler_map_stats['wins'] += map_brawler_data.get('wins', 0)
         
-        series_id = f"{teams_sorted}_{mode}_{match_map}_{comps_sorted}_{time_rounded}"
+        if brawler_map_stats['picks'] == 0:
+            return f"No data available for {brawler_name} on {map_display}", 404
         
-        if series_id not in series_tracking:
-            series_tracking[series_id] = set()
         
-        if brawler_name in series_tracking[series_id]:
-            continue
+        overall_winrate = (brawler_map_stats['wins'] / brawler_map_stats['picks'] * 100) if brawler_map_stats['picks'] > 0 else 0
         
-        for team_prefix in ['team1', 'team2']:
-            team_brawlers = [
-                str(match[f'{team_prefix}_player1_brawler']),
-                str(match[f'{team_prefix}_player2_brawler']),
-                str(match[f'{team_prefix}_player3_brawler'])
-            ]
-            
-            if brawler_name not in team_brawlers:
-                continue
-            
-            series_tracking[series_id].add(brawler_name)
-            
-            # Update stats
-            winner = str(match['winner'])
-            team_name = match[f'{team_prefix}_name']
-            is_winner = (winner == team_name)
-            
-            brawler_map_stats['picks'] += 1
-            if is_winner:
-                brawler_map_stats['wins'] += 1
-            
-            # Track teammates
-            for teammate in team_brawlers:
-                if teammate != brawler_name and teammate not in ['nan', '', 'None']:
-                    teammates_stats[teammate]['picks'] += 1
-                    if is_winner:
-                        teammates_stats[teammate]['wins'] += 1
-            
-            # Track opponents
-            enemy_prefix = 'team2' if team_prefix == 'team1' else 'team1'
-            enemy_brawlers = [
-                str(match[f'{enemy_prefix}_player1_brawler']),
-                str(match[f'{enemy_prefix}_player2_brawler']),
-                str(match[f'{enemy_prefix}_player3_brawler'])
-            ]
-            
-            for opponent in enemy_brawlers:
-                if opponent not in ['nan', '', 'None']:
-                    opponent_stats[opponent]['picks'] += 1
-                    if is_winner:
-                        opponent_stats[opponent]['wins'] += 1
+        best_teammates, best_matchups, worst_matchups = get_brawler_synergies_filtered(
+            brawler_name,
+            map_filter=map_name
+        )
+        
+        return render_template('brawler_map.html',
+                             user=session.get('discord_tag', 'Unknown'),
+                             brawler_name=brawler_name,
+                             map_name=map_display,
+                             mode_name=brawler_map_stats['mode'],
+                             stats=brawler_map_stats,
+                             overall_winrate=overall_winrate,
+                             best_teammates=best_teammates[:10],
+                             best_matchups=best_matchups,
+                             worst_matchups=worst_matchups)
     
-    if brawler_map_stats['picks'] == 0:
-        return "No data available for this combination", 404
-    
-    # Calculate overall win rate
-    overall_winrate = (brawler_map_stats['wins'] / brawler_map_stats['picks'] * 100) if brawler_map_stats['picks'] > 0 else 0
-    
-    # Best teammates (min 3 games together)
-    best_teammates = []
-    for teammate, data in teammates_stats.items():
-        if data['picks'] >= 3:
-            win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            best_teammates.append({
-                'name': teammate,
-                'picks': data['picks'],
-                'wins': data['wins'],
-                'win_rate': win_rate
-            })
-    best_teammates.sort(key=lambda x: x['win_rate'], reverse=True)
-    
-    # Calculate all matchups
-    all_matchups = []
-    for opponent, data in opponent_stats.items():
-        if data['picks'] >= 5:
-            win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            all_matchups.append({
-                'name': opponent,
-                'picks': data['picks'],
-                'wins': data['wins'],
-                'win_rate': win_rate
-            })
-    
-    all_matchups.sort(key=lambda x: x['win_rate'], reverse=True)
-    
-    # Best matchups (top 10 highest win rates)
-    best_matchups = all_matchups[:10]
-    
-    # Worst matchups (bottom 10 lowest win rates)
-    worst_matchups = all_matchups[-10:]
-    worst_matchups.reverse()
-    
-    return render_template('brawler_map.html',
-                         user=session['discord_tag'],
-                         brawler_name=brawler_name,
-                         map_name=map_display,
-                         mode_name=brawler_map_stats['mode'],
-                         stats=brawler_map_stats,
-                         overall_winrate=overall_winrate,
-                         best_teammates=best_teammates[:10],
-                         best_matchups=best_matchups,
-                         worst_matchups=worst_matchups)
+    except Exception as e:
+        print(f"❌ BRAWLER-MAP ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Brawler-map error: {e}", 500
+
+
 
 @app.route('/modes')
 def modes_overview():
@@ -1857,7 +2574,7 @@ def modes_overview():
     
     for team_name, team in teams_data.items():
         for mode_name, mode_data in team['modes'].items():
-            if mode_name in ['Unknown', 'nan', '', 'None']:
+            if mode_name not in VALID_MODES:
                 continue
             
             # Count games
@@ -1904,7 +2621,6 @@ def modes_overview():
                     'win_rate': top_brawler_data['win_rate'],
                     'picks': top_brawler_data['picks']
                 }
-                print(f"Mode: {mode_name}, Top Brawler: {top_brawler}")  # Debug print
         
         modes_list.append({
             'name': mode_name,
@@ -1920,6 +2636,8 @@ def modes_overview():
     return render_template('modes_overview.html',
                          user=session['discord_tag'],
                          modes=modes_list)
+
+
 
 @app.route('/team/<team_name>/brawler/<brawler_name>')
 def team_brawler_page(team_name, brawler_name):
@@ -1994,6 +2712,80 @@ def auth():
     
     return redirect('/dashboard')
 
-if __name__ == '__main__':
+
+def ensure_roster_files_exist():
+    """Ensure team_rosters.json and tracked_players.json exist and are up to date"""
+    import os
     
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    def should_regenerate(json_file, source_file):
+        """Check if JSON file needs regeneration"""
+        if not os.path.exists(json_file):
+            return True
+        if not os.path.exists(source_file):
+            return False
+        # Regenerate if source is newer than JSON
+        return os.path.getmtime(source_file) > os.path.getmtime(json_file)
+    
+    # Check team_rosters.json
+    if should_regenerate('team_rosters.json', 'teams.xlsx'):
+        try:
+            teams_df = pd.read_excel('teams.xlsx')
+            rosters = {}
+            
+            for _, row in teams_df.iterrows():
+                team_name = row['Team Name']
+                roster = []
+                
+                for i in range(1, 4):
+                    tag_col = f'Player {i} ID'
+                    if tag_col in teams_df.columns and pd.notna(row.get(tag_col)):
+                        tag = str(row[tag_col]).strip().upper().replace('0', 'O')
+                        if not tag.startswith('#'):
+                            tag = '#' + tag
+                        roster.append(tag)
+                
+                if roster:
+                    rosters[team_name] = roster
+            
+            with open('team_rosters.json', 'w') as f:
+                json.dump(rosters, f, indent=2)
+            
+        except Exception as e:
+            print(f"❌ Error creating team_rosters.json: {e}")
+            with open('team_rosters.json', 'w') as f:
+                json.dump({}, f)
+    
+    # Check tracked_players.json
+    if should_regenerate('tracked_players.json', 'players_off.xlsx'):
+        try:
+            players_df = pd.read_excel('players_off.xlsx')
+            tracked = {}
+            
+            for _, row in players_df.iterrows():
+                tag = str(row['Player ID']).strip().upper().replace('0', 'O')
+                if not tag.startswith('#'):
+                    tag = '#' + tag
+                
+                region = str(row.get('Region', 'NA')).strip().upper()
+                if region in ['NAN', 'NONE', '', 'NULL'] or pd.isna(row.get('Region')):
+                    region = 'NA'
+                
+                tracked[tag] = {
+                    'name': str(row['Player Name']).strip(),
+                    'region': region
+                }
+            
+            with open('tracked_players.json', 'w') as f:
+                json.dump(tracked, f, indent=2)
+            
+            print(f"✓ Created tracked_players.json with {len(tracked)} players")
+        except Exception as e:
+            print(f"❌ Error creating tracked_players.json: {e}")
+            with open('tracked_players.json', 'w') as f:
+                json.dump({}, f)
+
+
+if __name__ == '__main__':
+    ensure_roster_files_exist()
+    
+    app.run(host='0.0.0.0', port=8080, debug=True)

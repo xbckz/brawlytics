@@ -72,6 +72,121 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+BOT_MODE_FILE = 'data/bot_mode.json'
+
+def load_bot_mode():
+    """Load current bot mode (season or offseason)"""
+    if not os.path.exists(BOT_MODE_FILE):
+        os.makedirs(os.path.dirname(BOT_MODE_FILE), exist_ok=True)
+        save_bot_mode('season')  # Default to season mode
+        return 'season'
+    
+    try:
+        with open(BOT_MODE_FILE, 'r') as f:
+            data = json.load(f)
+            return data.get('mode', 'season')
+    except:
+        return 'season'
+
+def save_bot_mode(mode):
+    """Save bot mode"""
+    os.makedirs(os.path.dirname(BOT_MODE_FILE), exist_ok=True)
+    with open(BOT_MODE_FILE, 'w') as f:
+        json.dump({
+            'mode': mode,
+            'updated_at': datetime.now().isoformat()
+        }, f, indent=2)
+
+def get_config_for_mode():
+    """Get file paths based on current mode"""
+    mode = load_bot_mode()
+    
+    if mode == 'offseason':
+        return {
+            'MATCHES_FILE': 'matches_off.xlsx',
+            'TEAMS_FILE': 'players_off.xlsx',  # Changed: uses players file for off-season
+            'MODE_NAME': 'Off-Season',
+            'MODE_EMOJI': '🏖️',
+            'IS_PLAYER_MODE': True
+        }
+    else:  # season
+        return {
+            'MATCHES_FILE': 'matches.xlsx',
+            'TEAMS_FILE': 'teams.xlsx',
+            'MODE_NAME': 'Season',
+            'MODE_EMOJI': '🏆',
+            'IS_PLAYER_MODE': False
+        }
+
+# Update the CONFIG dictionary to be dynamic
+def get_matches_file():
+    """Get the appropriate matches file for current mode"""
+    mode_config = get_config_for_mode()
+    return mode_config['MATCHES_FILE']
+
+def get_teams_file():
+    """Get the appropriate teams file for current mode"""
+    mode_config = get_config_for_mode()
+    return mode_config['TEAMS_FILE']
+
+def is_admin():
+    """Decorator to check if user is the admin"""
+    async def predicate(ctx):
+        return str(ctx.author.id) == "606751416261935123"
+    return commands.check(predicate)
+
+def is_authorized():
+    """Decorator to check if user is authorized (paid subscriber)"""
+    async def predicate(ctx):
+        user_id = str(ctx.author.id)
+        
+        # Admin always has access
+        if user_id == "606751416261935123":
+            return True
+        
+        # Check if user is in authorized list
+        if not is_user_authorized(user_id):
+            embed = discord.Embed(
+                title="❌ Access Denied",
+                description="You need to be authorized to use this bot.",
+                color=discord.Color.red()
+            )
+            embed.add_field(
+                name="How to get access",
+                value="Contact @xiaku to get authorized access.",
+                inline=False
+            )
+            await ctx.send(embed=embed, delete_after=10)
+            return False
+        
+        # Check if subscription has expired
+        authorized = load_json(AUTHORIZED_USERS_FILE)
+        user_data = authorized.get(user_id)
+        
+        if user_data and user_data.get('expires_at'):
+            expiration_date = pd.to_datetime(user_data['expires_at'])
+            if pd.Timestamp.now() > expiration_date:
+                embed = discord.Embed(
+                    title="⚠️ Subscription Expired",
+                    description="Your subscription has expired.",
+                    color=discord.Color.orange()
+                )
+                embed.add_field(
+                    name="Expired on",
+                    value=expiration_date.strftime('%Y-%m-%d'),
+                    inline=True
+                )
+                embed.add_field(
+                    name="Renew access",
+                    value="Contact the @xiaku to renew your subscription.",
+                    inline=False
+                )
+                await ctx.send(embed=embed, delete_after=15)
+                return False
+        
+        return True
+    
+    return commands.check(predicate)
 
 def load_json(filepath):
     """Load JSON file, create if doesn't exist"""
@@ -655,16 +770,20 @@ def apply_date_filter(start_date=None, end_date=None):
         return False, f"Error recalculating stats: {e}"
     
     return True, f"Filtered to {len(matches_df)} matches"
+
+
 def load_matches_data():
     """Load matches from Excel file (last 30 days only)"""
     global matches_df, teams_data, region_stats
     
-    if not os.path.exists(CONFIG['MATCHES_FILE']):
-        print(f"{CONFIG['MATCHES_FILE']} not found!")
+    matches_file = get_matches_file()
+    
+    if not os.path.exists(matches_file):
+        print(f"{matches_file} not found!")
         return False
     
     try:
-        df = pd.read_excel(CONFIG['MATCHES_FILE'])
+        df = pd.read_excel(matches_file)
         
         # Filter to last 30 days
         if 'battle_time' in df.columns:
@@ -676,13 +795,240 @@ def load_matches_data():
             print("Warning: 'battle_time' column not found - using all matches")
         
         matches_df = df
-        print(f"Loaded {len(matches_df)} matches from {CONFIG['MATCHES_FILE']}")
+        print(f"Loaded {len(matches_df)} matches from {matches_file}")
         calculate_all_stats()
         return True
     except Exception as e:
         print(f"Error loading Excel: {e}")
         return False
+
+def calculate_all_stats_offseason():
+    """
+    Calculate comprehensive statistics from matches for OFF-SEASON mode
+    Focus on individual player tracking instead of team tracking
+    """
+    global teams_data, region_stats
     
+    valid_rosters = load_team_rosters_offseason()
+
+    # Region name mapping (matches file -> bot display)
+    region_mapping = {
+        'APAC': 'EA',  # Map APAC in Excel to EA in bot
+    }
+
+    teams_data = {}
+    region_stats = defaultdict(lambda: {
+        'total_matches': 0,
+        'teams': set()
+    })
+    
+    match_brawler_tracking = {}
+    series_tracking_brawlers = {}
+
+    for _, match in matches_df.iterrows():
+        match_id = match.get('battle_time', str(_))
+        
+        # Create series ID (same logic as season mode)
+        team1 = match['team1_name']
+        team2 = match['team2_name']
+        teams_sorted = tuple(sorted([team1, team2]))
+        mode = str(match['mode'])
+        map_name = str(match['map'])
+        
+        team1_comp = sorted([
+            str(match['team1_player1_brawler']),
+            str(match['team1_player2_brawler']),
+            str(match['team1_player3_brawler'])
+        ])
+        team2_comp = sorted([
+            str(match['team2_player1_brawler']),
+            str(match['team2_player2_brawler']),
+            str(match['team2_player3_brawler'])
+        ])
+        
+        comps_sorted = tuple(sorted([tuple(team1_comp), tuple(team2_comp)]))
+        
+        battle_time = match.get('battle_time')
+        if pd.notna(battle_time):
+            time_rounded = pd.Timestamp(battle_time).floor('30min')
+        else:
+            time_rounded = match_id
+        
+        series_id = f"{teams_sorted}_{mode}_{map_name}_{comps_sorted}_{time_rounded}"
+        
+        if series_id not in series_tracking_brawlers:
+            series_tracking_brawlers[series_id] = {}
+        
+        # Get tracked players from match data
+        tracked_team1 = str(match.get('tracked_team1', '')).split(',') if pd.notna(match.get('tracked_team1')) else []
+        tracked_team2 = str(match.get('tracked_team2', '')).split(',') if pd.notna(match.get('tracked_team2')) else []
+        tracked_team1 = [t.strip() for t in tracked_team1 if t.strip()]
+        tracked_team2 = [t.strip() for t in tracked_team2 if t.strip()]
+        
+        for team_prefix in ['team1', 'team2']:
+            team_name = match[f'{team_prefix}_name']
+            team_region = str(match[f'{team_prefix}_region']).strip().upper()
+            
+            if team_region in ['NAN', 'NONE', '', 'UNKNOWN'] or pd.isna(match[f'{team_prefix}_region']):
+                team_region = 'NA'
+            
+            team_region = region_mapping.get(team_region, team_region)
+            
+            if team_region not in CONFIG['REGIONS']:
+                print(f"Invalid region '{team_region}' for team '{team_name}', setting to NA")
+                team_region = 'NA'
+            
+            if team_name not in teams_data:
+                teams_data[team_name] = {
+                    'region': team_region,
+                    'matches': 0,
+                    'wins': 0,
+                    'losses': 0,
+                    'players': defaultdict(lambda: {
+                        'matches': 0,
+                        'wins': 0,
+                        'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0}),
+                        'star_player': 0
+                    }),
+                    'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0}),
+                    'modes': defaultdict(lambda: {
+                        'matches': 0,
+                        'wins': 0,
+                        'maps': defaultdict(lambda: {
+                            'matches': 0,
+                            'wins': 0,
+                            'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0})
+                        })
+                    })
+                }
+            
+            team = teams_data[team_name]
+            team['matches'] += 1
+
+            winner_name = str(match['winner']).strip()
+            is_winner = (winner_name == team_prefix)
+            if is_winner:
+                team['wins'] += 1
+            else:
+                team['losses'] += 1
+            
+            mode = str(match['mode'])
+            map_name = str(match['map'])
+            
+            if pd.isna(match['mode']) or mode == 'nan':
+                mode = 'Unknown'
+            if pd.isna(match['map']) or map_name == 'nan':
+                map_name = 'Unknown'
+            
+            team['modes'][mode]['matches'] += 1
+            team['modes'][mode]['maps'][map_name]['matches'] += 1
+            if is_winner:
+                team['modes'][mode]['wins'] += 1
+                team['modes'][mode]['maps'][map_name]['wins'] += 1
+            
+            if match_id not in match_brawler_tracking:
+                match_brawler_tracking[match_id] = {}
+            if team_name not in match_brawler_tracking[match_id]:
+                match_brawler_tracking[match_id][team_name] = set()
+            
+            star_player_tag = str(match.get('star_player_tag', '')).strip().upper().replace('0', 'O')
+            
+            # Process players - but only count stats for TRACKED players
+            tracked_list = tracked_team1 if team_prefix == 'team1' else tracked_team2
+            
+            for i in range(1, 4):
+                player_name = str(match[f'{team_prefix}_player{i}'])
+                player_tag = str(match[f'{team_prefix}_player{i}_tag']).strip().upper().replace('0', 'O')
+                brawler = str(match[f'{team_prefix}_player{i}_brawler'])
+                is_tracked = match.get(f'{team_prefix}_player{i}_tracked', False)
+                
+                if pd.isna(match[f'{team_prefix}_player{i}']) or player_name == 'nan':
+                    continue
+                
+                # Only process stats for TRACKED players
+                if not is_tracked or player_tag not in tracked_list:
+                    continue
+                
+                # Skip players not in the roster (if roster validation is enabled)
+                if valid_rosters and team_name in valid_rosters:
+                    if player_tag not in valid_rosters[team_name]:
+                        continue
+                
+                player = team['players'][player_tag]
+                player['name'] = player_name
+                player['matches'] += 1
+                
+                if is_winner:
+                    player['wins'] += 1
+                
+                # Track brawler picks per SERIES
+                if team_name not in series_tracking_brawlers[series_id]:
+                    series_tracking_brawlers[series_id][team_name] = set()
+
+                brawler_key = f"{player_tag}_{brawler}"
+                if brawler_key not in series_tracking_brawlers[series_id][team_name]:
+                    series_tracking_brawlers[series_id][team_name].add(brawler_key)
+                    
+                    player['brawlers'][brawler]['picks'] += 1
+                    team['brawlers'][brawler]['picks'] += 1
+                    team['modes'][mode]['maps'][map_name]['brawlers'][brawler]['picks'] += 1
+                    
+                    if is_winner:
+                        player['brawlers'][brawler]['wins'] += 1
+                        team['brawlers'][brawler]['wins'] += 1
+                        team['modes'][mode]['maps'][map_name]['brawlers'][brawler]['wins'] += 1
+                
+                # Star player tracking
+                if star_player_tag and star_player_tag != 'NAN' and star_player_tag == player_tag:
+                    player['star_player'] += 1
+            
+            region_stats[team_region]['total_matches'] += 1
+            region_stats[team_region]['teams'].add(team_name)
+    
+    for region in region_stats:
+        region_stats[region]['teams'] = list(region_stats[region]['teams'])
+
+
+# NEW FUNCTION: Load rosters for off-season mode
+def load_team_rosters_offseason():
+    """Load valid player tags from players_off.xlsx"""
+    valid_players = {}
+    mode_config = get_config_for_mode()
+    players_file = mode_config['TEAMS_FILE']
+    
+    if not os.path.exists(players_file):
+        print(f"Warning: {players_file} not found - all players will be included")
+        return None
+    
+    try:
+        players_df = pd.read_excel(players_file)
+        
+        for _, row in players_df.iterrows():
+            tag_col = 'Player ID'
+            potential_team_col = 'Potential Team'
+            
+            if tag_col in players_df.columns and pd.notna(row.get(tag_col)):
+                tag = str(row[tag_col]).strip().upper().replace('0', 'O')
+                if not tag.startswith('#'):
+                    tag = '#' + tag
+                
+                # Use potential team or player name as team key
+                if potential_team_col in players_df.columns and pd.notna(row.get(potential_team_col)):
+                    team_key = str(row[potential_team_col]).strip()
+                else:
+                    team_key = str(row['Player Name']).strip()
+                
+                if team_key not in valid_players:
+                    valid_players[team_key] = set()
+                valid_players[team_key].add(tag)
+        
+        print(f"Loaded {sum(len(tags) for tags in valid_players.values())} tracked players from {players_file} (off-season mode)")
+        return valid_players
+        
+    except Exception as e:
+        print(f"Error loading player rosters: {e}")
+        return None
+
 def calculate_all_stats():
     """Calculate comprehensive statistics from matches"""
     global teams_data, region_stats
@@ -2655,14 +3001,14 @@ class PlayerSelectView(View):
 
 def create_welcome_embed():
     """Create the welcome/intro embed"""
+    mode_config = get_config_for_mode()
+    
     embed = discord.Embed(
         description=(
-            "# Brawlnalytics 📊#\n\n"
-            "\u200b\n"
+            f"**{mode_config['MODE_EMOJI']} {mode_config['MODE_NAME']} Mode**\n\n"
             "**Get all data needed for any team from any region.**\n\n"
-            "The bot automatically refreshes data every 5 minutes. All data is no older than 30 days.\n\n"
+            "The bot automatically refreshes data every 5 minutes.\n\n"
             "Use !help to see all possible commands.\n\n"
-            
         ),
         color=discord.Color.red(),
         timestamp=datetime.now()
@@ -2673,12 +3019,12 @@ def create_welcome_embed():
     
     embed.add_field(name="Tracked Matches", value=f"**{total_matches * 2}**", inline=True)
     embed.add_field(name="Teams", value=f"**{total_teams}**", inline=True)
-    embed.add_field(name="Regions", value=f"**{len(region_stats)}\n\n**", inline=True)
+    embed.add_field(name="Regions", value=f"**{len(region_stats)}**", inline=True)
 
-    embed.add_field(name="Note that:", value=f"Brawler WR and picks are per sets, overall team WR is per matches.\n\n", inline=True)
+    embed.add_field(name="Note that:", value="Brawler WR and picks are per sets, overall team WR is per matches.\n\n", inline=False)
     
     embed.add_field(
-        name="\u200B\nℹ️ Features",
+        name="ℹ️ Features",
         value=(
             "• Region based map stats\n"
             "• Modes stats\n"
@@ -2694,6 +3040,230 @@ def create_welcome_embed():
     )
 
     return embed
+
+
+@bot.command(name='mode')
+@is_authorized()
+async def mode_command(ctx, new_mode: str = None):
+    """
+    View or change bot mode (All users)
+    Usage: !mode [season/offseason]
+    """
+    current_mode = load_bot_mode()
+    mode_config = get_config_for_mode()
+    
+    if not new_mode:
+        # Show current mode
+        embed = discord.Embed(
+            title=f"{mode_config['MODE_EMOJI']} Current Bot Mode",
+            description=f"**{mode_config['MODE_NAME']} Mode**",
+            color=discord.Color.red()
+        )
+        
+        # Check if files exist
+        teams_exists = os.path.exists(mode_config['TEAMS_FILE'])
+        matches_exists = os.path.exists(mode_config['MATCHES_FILE'])
+        
+        status_icon = "✅" if (teams_exists and matches_exists) else "⚠️"
+        
+        embed.add_field(
+            name="Data Files",
+            value=(
+                f"{'Players' if mode_config.get('IS_PLAYER_MODE') else 'Teams'}: `{mode_config['TEAMS_FILE']}` {('✅' if teams_exists else '❌ Not found')}\n"
+                f"Matches: `{mode_config['MATCHES_FILE']}` {('✅' if matches_exists else '❌ Not found')}"
+            ),
+            inline=False
+        )
+        
+        if not teams_exists or not matches_exists:
+            if mode_config.get('IS_PLAYER_MODE'):
+                embed.add_field(
+                    name="⚠️ Missing Files",
+                    value="Create `players_off.xlsx` to track individual players. See !help for structure.",
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="⚠️ Missing Files",
+                    value="Create the required files to use this mode. The bot will create empty match files automatically.",
+                    inline=False
+                )
+        
+        embed.add_field(
+            name="Change Mode",
+            value="Use `!mode season` or `!mode offseason` to switch",
+            inline=False
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Change mode
+    new_mode = new_mode.lower()
+    if new_mode not in ['season', 'offseason']:
+        await ctx.send("❌ Invalid mode. Use `season` or `offseason`")
+        return
+    
+    if new_mode == current_mode:
+        await ctx.send(f"ℹ️ Already in {new_mode} mode")
+        return
+    
+    # Save new mode
+    save_bot_mode(new_mode)
+    
+    # Check if required files exist
+    new_config = get_config_for_mode()
+    teams_file = new_config['TEAMS_FILE']
+    matches_file = new_config['MATCHES_FILE']
+    
+    if not os.path.exists(teams_file):
+        save_bot_mode(current_mode)  # Revert
+        await ctx.send(
+            f"❌ Cannot switch to {new_mode} mode: `{teams_file}` not found!\n"
+            f"Please create the teams file first."
+        )
+        return
+    
+    # Create empty matches file if it doesn't exist
+    if not os.path.exists(matches_file):
+        try:
+            empty_df = pd.DataFrame(columns=[
+                'battle_time', 'team1_name', 'team1_region', 'team2_name', 'team2_region',
+                'winner', 'mode', 'map', 'star_player_tag',
+                'team1_player1', 'team1_player1_tag', 'team1_player1_brawler',
+                'team1_player2', 'team1_player2_tag', 'team1_player2_brawler',
+                'team1_player3', 'team1_player3_tag', 'team1_player3_brawler',
+                'team2_player1', 'team2_player1_tag', 'team2_player1_brawler',
+                'team2_player2', 'team2_player2_tag', 'team2_player2_brawler',
+                'team2_player3', 'team2_player3_tag', 'team2_player3_brawler'
+            ])
+            empty_df.to_excel(matches_file, index=False)
+            print(f"✅ Created empty matches file: {matches_file}")
+        except Exception as e:
+            save_bot_mode(current_mode)  # Revert
+            await ctx.send(f"❌ Error creating matches file: {e}")
+            return
+    
+    # Reload data with new mode
+    global matches_df, teams_data, region_stats, original_matches_df, filter_start_date, filter_end_date
+    
+    # Clear filters when switching modes
+    filter_start_date = None
+    filter_end_date = None
+    original_matches_df = None
+    
+    if load_matches_data():
+        embed = discord.Embed(
+            title=f"✅ Mode Changed",
+            description=f"Switched to **{new_config['MODE_NAME']} Mode** {new_config['MODE_EMOJI']}",
+            color=discord.Color.green()
+        )
+        embed.add_field(
+            name="Now Using",
+            value=f"Teams: `{new_config['TEAMS_FILE']}`\nMatches: `{new_config['MATCHES_FILE']}`",
+            inline=False
+        )
+        
+        match_count = len(matches_df) * 2 if matches_df is not None else 0
+        team_count = len(teams_data)
+        
+        embed.add_field(
+            name="Loaded Data",
+            value=f"**{match_count}** matches from **{team_count}** teams",
+            inline=False
+        )
+        
+        if match_count == 0:
+            embed.add_field(
+                name="ℹ️ No Matches Yet",
+                value="The matches file is empty. Data will appear as matches are played and fetched by load.py",
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
+    else:
+        # Revert if loading failed
+        save_bot_mode(current_mode)
+        await ctx.send(f"❌ Failed to load data for {new_mode} mode. Reverted to {current_mode} mode.")
+
+
+@bot.command(name='status')
+@is_authorized()
+async def status_command(ctx):
+    """Show bot status and current mode"""
+    mode_config = get_config_for_mode()
+    
+    embed = discord.Embed(
+        title=f"🤖 Bot Status",
+        color=discord.Color.red(),
+        timestamp=datetime.now()
+    )
+    
+    embed.add_field(
+        name=f"{mode_config['MODE_EMOJI']} Mode",
+        value=f"**{mode_config['MODE_NAME']}**",
+        inline=True
+    )
+    
+    total_teams = len(teams_data)
+    total_matches = len(matches_df) if matches_df is not None else 0
+    
+    embed.add_field(name="Matches", value=f"**{total_matches * 2}**", inline=True)
+    embed.add_field(name="Teams", value=f"**{total_teams}**", inline=True)
+    
+    embed.add_field(
+        name="Data Files",
+        value=f"Teams: `{mode_config['TEAMS_FILE']}`\nMatches: `{mode_config['MATCHES_FILE']}`",
+        inline=False
+    )
+    
+    # Show filter status
+    if filter_start_date or filter_end_date:
+        start_str = filter_start_date.strftime('%Y-%m-%d') if filter_start_date else "Beginning"
+        end_str = filter_end_date.strftime('%Y-%m-%d') if filter_end_date else "Now"
+        embed.add_field(
+            name="📅 Date Filter",
+            value=f"{start_str} → {end_str}",
+            inline=False
+        )
+    
+    # Last update time
+    if matches_df is not None and 'battle_time' in matches_df.columns:
+        latest_match = matches_df['battle_time'].max()
+        if pd.notna(latest_match):
+            time_diff = pd.Timestamp.now(tz='UTC') - pd.to_datetime(latest_match, utc=True)
+            hours = int(time_diff.total_seconds() / 3600)
+            if hours < 1:
+                minutes = int(time_diff.total_seconds() / 60)
+                last_update = f"{minutes} min ago"
+            elif hours < 24:
+                last_update = f"{hours}h ago"
+            else:
+                days = int(time_diff.total_seconds() / 86400)
+                last_update = f"{days}d ago"
+            
+            embed.add_field(
+                name="⏰ Latest Match",
+                value=last_update,
+                inline=True
+            )
+    
+    await ctx.send(embed=embed)
+
+
+@bot.command(name='menu')
+async def menu_command(ctx):
+    """Display main menu"""
+    banner_path = './static/banner.jpg'
+    
+    # Send banner image first (full width, no embed)
+    if os.path.exists(banner_path):
+        await ctx.send(file=discord.File(banner_path))
+    
+    # Then send the content embed
+    view = WelcomeView()
+    content_embed = create_welcome_embed()
+    await ctx.send(embed=content_embed, view=view)
+
 
 
 def get_team_image(team_name):
@@ -2781,15 +3351,10 @@ async def data_refresh():
         print("Failed to refresh data")
 
 
-@bot.command(name='menu')
-async def menu_command(ctx):
-    """Display main menu"""
-    view = WelcomeView()
-    embed = create_welcome_embed()
-    await ctx.send(embed=embed, view=view)
 
 
 @bot.command(name='na')
+@is_authorized()
 async def na_command(ctx):
     """Quick access to NA region"""
     view = RegionView('NA')
@@ -2798,6 +3363,7 @@ async def na_command(ctx):
 
 
 @bot.command(name='eu')
+@is_authorized()
 async def eu_command(ctx):
     """Quick access to EU region"""
     view = RegionView('EU')
@@ -2806,6 +3372,7 @@ async def eu_command(ctx):
 
 
 @bot.command(name='latam')
+@is_authorized()
 async def latam_command(ctx):
     """Quick access to LATAM region"""
     view = RegionView('LATAM')
@@ -2814,6 +3381,7 @@ async def latam_command(ctx):
 
 
 @bot.command(name='ea')
+@is_authorized()
 async def ea_command(ctx):
     """Quick access to EA region"""
     view = RegionView('EA')
@@ -2822,6 +3390,7 @@ async def ea_command(ctx):
 
 
 @bot.command(name='sea')
+@is_authorized()
 async def sea_command(ctx):
     """Quick access to SEA region"""
     view = RegionView('SEA')
@@ -2830,6 +3399,7 @@ async def sea_command(ctx):
 
 
 @bot.command(name='all')
+@is_authorized()
 async def all_command(ctx):
     """Quick access to all regions overview"""
     view = AllRegionsView()
@@ -2838,6 +3408,7 @@ async def all_command(ctx):
 
 
 @bot.command(name='team')
+@is_authorized()
 async def team_command(ctx, *, team_name: str = None):
     """Quick access to any team. Usage: !team <team_name>"""
     if not team_name:
@@ -2871,6 +3442,7 @@ async def team_command(ctx, *, team_name: str = None):
         await ctx.send(embed=embed, view=view)
 
 @bot.command(name='teams')
+@is_authorized()
 async def teams_command(ctx):
     """List all teams by region with their players"""
     if not teams_data:
@@ -2931,6 +3503,7 @@ async def teams_command(ctx):
         await ctx.send(embed=embed)
 
 @bot.command(name='filter')
+@is_authorized()
 async def filter_command(ctx, start_date: str = None, end_date: str = None):
     """
     Filter data by date range
@@ -3019,6 +3592,7 @@ async def filter_command(ctx, start_date: str = None, end_date: str = None):
 bot.remove_command('help')  # Remove default help
 
 @bot.command(name='help')
+@is_authorized()
 async def help_command(ctx):
     """Custom help command with sorted categories"""
     embed = discord.Embed(
@@ -3130,7 +3704,7 @@ async def access_command(ctx):
 
 
 @bot.command(name='add')
-@commands.has_permissions(administrator=True)
+@is_admin()
 async def adduser_command(ctx, user: discord.User, duration: str = "30d"):
     """
     Add a user to authorized list with expiration (Admin only)
@@ -3190,7 +3764,7 @@ async def adduser_command(ctx, user: discord.User, duration: str = "30d"):
 
 
 @bot.command(name='rmv')
-@commands.has_permissions(administrator=True)
+@is_admin()
 async def removeuser_command(ctx, user: discord.User):
     """Remove a user from authorized list (Admin only)"""
     authorized = load_json(AUTHORIZED_USERS_FILE)
@@ -3213,8 +3787,8 @@ async def removeuser_command(ctx, user: discord.User):
     await ctx.send(embed=embed)
 
 
-@bot.command(name='listusers')
-@commands.has_permissions(administrator=True)
+@bot.command(name='users')
+@is_admin()
 async def listusers_command(ctx):
     """List all authorized users with expiration dates (Admin only)"""
     authorized = load_json(AUTHORIZED_USERS_FILE)
