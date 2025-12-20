@@ -274,20 +274,119 @@
             height: 300px;
         }
         
+        .settings-header p {
+            font-size: 1rem;
+            padding: 0 1rem;
+        }
+        
+        /* Theme grid - 2 per row */
         .theme-grid {
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
         }
         
+        .theme-card {
+            padding: 1rem;
+        }
+        
+        .theme-preview {
+            height: 50px;
+            margin-bottom: 0.75rem;
+        }
+        
+        .theme-name {
+            font-size: 0.9rem;
+        }
+        
+        /* Mode filters - 2 per row */
         .date-filter-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
         }
         
+        /* Data filters section - 3 per row with smaller size */
+        .settings-section:last-of-type .date-filter-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.4rem;
+        }
+        
+        .settings-section:last-of-type .date-card {
+            padding: 0.65rem 0.35rem;
+        }
+        
+        .settings-section:last-of-type .date-label {
+            font-size: 0.75rem;
+            margin-bottom: 0.2rem;
+        }
+        
+        .settings-section:last-of-type .date-description {
+            font-size: 0.65rem;
+            line-height: 1.2;
+        }
+        
+        .date-card {
+            padding: 0.75rem 0.5rem;
+        }
+        
+        .date-label {
+            font-size: 0.85rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .date-description {
+            font-size: 0.7rem;
+            line-height: 1.3;
+        }
+        
+        /* Custom date inputs */
         .custom-date-inputs {
             grid-template-columns: 1fr;
+            padding: 1rem;
+            gap: 0.75rem;
+        }
+        
+        .date-input {
+            padding: 0.65rem;
+            font-size: 0.9rem;
+        }
+        
+        /* Section styling */
+        .section-header {
+            padding: 1.25rem 1rem;
+            font-size: 1.3rem;
         }
         
         .section-content {
-            padding: 1.5rem;
+            padding: 1rem;
+        }
+        
+        /* Save button */
+        .save-button {
+            padding: 0.875rem;
+            font-size: 1rem;
+        }
+    }
+    
+    /* Extra small phones */
+    @media (max-width: 480px) {
+        .settings-header h1 {
+            font-size: 2rem;
+        }
+        
+        .theme-preview {
+            height: 45px;
+        }
+        
+        .theme-name {
+            font-size: 0.85rem;
+        }
+        
+        .date-label {
+            font-size: 0.9rem;
+        }
+        
+        .date-description {
+            font-size: 0.75rem;
         }
     }
 </style>
@@ -296,83 +395,79 @@
 {% block content %}
 <div class="settings-header">
     <h1>Settings</h1>
-    
+    <p>Manage theme, mode, and data range.</p>
 </div>
 
 <form method="POST">
     <div class="settings-section">
-        <div class="section-header">Appearance</div>
-        <div class="section-content">
-            <div class="theme-grid">
-                <label class="theme-option">
-                    <input type="radio" name="theme" value="red" {% if current_theme == 'red' %}checked{% endif %} onchange="previewTheme('red')">
-                    <div class="theme-card">
-                        <div class="theme-preview">
-                            <div class="theme-preview-color" style="background: #ef4444;"></div>
-                            <div class="theme-preview-color" style="background: #111111;"></div>
-                            <div class="theme-preview-color" style="background: #1a1a1a;"></div>
-                        </div>
-                        <div class="theme-name">Red</div>
+    <div class="section-header">Appearance</div>
+    <div class="section-content">
+        <div class="theme-grid">
+            <label class="theme-option">
+                <input type="radio" name="theme" value="red">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#ef4444"></div>
+                        <div class="theme-preview-color" style="background:#111"></div>
                     </div>
-                </label>
-                
-                <label class="theme-option">
-                    <input type="radio" name="theme" value="brawl" {% if current_theme == 'brawl' %}checked{% endif %} onchange="previewTheme('brawl')">
-                    <div class="theme-card">
-                        <div class="theme-preview">
-                            <div class="theme-preview-color" style="background: #e94560;"></div>
-                            <div class="theme-preview-color" style="background: #16213e;"></div>
-                            <div class="theme-preview-color" style="background: #0f3460;"></div>
-                        </div>
-                        <div class="theme-name">Brawl</div>
+                    <div class="theme-name">Red</div>
+                </div>
+            </label>
+
+            <label class="theme-option">
+                <input type="radio" name="theme" value="brawl">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#e94560"></div>
+                        <div class="theme-preview-color" style="background:#16213e"></div>
                     </div>
-                </label>
-                
-                <label class="theme-option">
-                    <input type="radio" name="theme" value="purple" {% if current_theme == 'purple' %}checked{% endif %} onchange="previewTheme('purple')">
-                    <div class="theme-card">
-                        <div class="theme-preview">
-                            <div class="theme-preview-color" style="background: #8b5cf6;"></div>
-                            <div class="theme-preview-color" style="background: #2d2438;"></div>
-                            <div class="theme-preview-color" style="background: #1a1625;"></div>
-                        </div>
-                        <div class="theme-name">Purple</div>
+                    <div class="theme-name">Brawl</div>
+                </div>
+            </label>
+
+            <label class="theme-option">
+                <input type="radio" name="theme" value="purple">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#8b5cf6"></div>
+                        <div class="theme-preview-color" style="background:#2d2438"></div>
                     </div>
-                </label>
-                
-                <label class="theme-option">
-                    <input type="radio" name="theme" value="blue" {% if current_theme == 'blue' %}checked{% endif %} onchange="previewTheme('blue')">
-                    <div class="theme-card">
-                        <div class="theme-preview">
-                            <div class="theme-preview-color" style="background: #3b82f6;"></div>
-                            <div class="theme-preview-color" style="background: #1e293b;"></div>
-                            <div class="theme-preview-color" style="background: #0f172a;"></div>
-                        </div>
-                        <div class="theme-name">Blue</div>
+                    <div class="theme-name">Purple</div>
+                </div>
+            </label>
+
+            <label class="theme-option">
+                <input type="radio" name="theme" value="blue">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#3b82f6"></div>
+                        <div class="theme-preview-color" style="background:#1e293b"></div>
                     </div>
-                </label>
-                
-                
-                
-                <label class="theme-option">
-                    <input type="radio" name="theme" value="orange" {% if current_theme == 'orange' %}checked{% endif %} onchange="previewTheme('orange')">
-                    <div class="theme-card">
-                        <div class="theme-preview">
-                            <div class="theme-preview-color" style="background: #f97316;"></div>
-                            <div class="theme-preview-color" style="background: #292524;"></div>
-                            <div class="theme-preview-color" style="background: #1c1917;"></div>
-                        </div>
-                        <div class="theme-name">Orange</div>
+                    <div class="theme-name">Blue</div>
+                </div>
+            </label>
+
+            <label class="theme-option">
+                <input type="radio" name="theme" value="orange">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#f97316"></div>
+                        <div class="theme-preview-color" style="background:#292524"></div>
                     </div>
-                </label>
-            </div>
+                    <div class="theme-name">Orange</div>
+                </div>
+            </label>
+
+            <!-- add blue / green / orange same way -->
         </div>
     </div>
+</div>
+
     
 
 
     <div class="settings-section">
-        <div class="section-header">View Mode</div>
+        <div class="section-header">Mode</div>
         <div class="section-content">
             <div class="date-filter-grid">
                 <label class="date-option">
@@ -445,33 +540,37 @@
 </form>
 
 <script>
-const themes = {
-    'red': {'primary': '#ef4444', 'bg': '#0a0a0a', 'card': '#111111', 'dark': '#1a1a1a'},
-    'brawl': {'primary': '#e94560', 'bg': '#1a1a2e', 'card': '#16213e', 'dark': '#0f3460'},
-    'purple': {'primary': '#8b5cf6', 'bg': '#1e1b29', 'card': '#2d2438', 'dark': '#1a1625'},
-    'blue': {'primary': '#3b82f6', 'bg': '#0f172a', 'card': '#1e293b', 'dark': '#0f172a'},
-    'green': {'primary': '#10b981', 'bg': '#064e3b', 'card': '#065f46', 'dark': '#022c22'},
-    'orange': {'primary': '#f97316', 'bg': '#1c1917', 'card': '#292524', 'dark': '#1c1917'}
-};
-
-function previewTheme(themeName) {
-    const theme = themes[themeName];
-    const root = document.documentElement;
+document.addEventListener('DOMContentLoaded', () => {
+    // Get current theme from localStorage
+    const currentTheme = localStorage.getItem('userTheme') || 'red';
     
-    root.style.setProperty('--primary', theme.primary);
-    root.style.setProperty('--bg', theme.bg);
-    root.style.setProperty('--card', theme.card);
-    root.style.setProperty('--dark', theme.dark);
-}
+    // Check the radio button for current theme
+    const themeInput = document.querySelector(`input[name="theme"][value="${currentTheme}"]`);
+    if (themeInput) {
+        themeInput.checked = true;
+    }
+    
+    // Listen for theme changes
+    document.querySelectorAll('.theme-option input').forEach(input => {
+        input.addEventListener('change', () => {
+            localStorage.setItem('userTheme', input.value);
+            applyTheme(input.value); // function from base.html
+        });
+    });
+});
+
 
 function toggleCustomDates(show) {
-    const customInputs = document.getElementById('custom-date-inputs');
+    const el = document.getElementById('custom-date-inputs');
+    if (!el) return;
+
     if (show) {
-        customInputs.classList.remove('hidden');
+        el.classList.remove('hidden');
     } else {
-        customInputs.classList.add('hidden');
+        el.classList.add('hidden');
     }
 }
 </script>
+
 
 {% endblock %}

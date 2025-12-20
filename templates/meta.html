@@ -337,18 +337,185 @@
         grid-column: 1 / -1;
     }
 
+    
     @media (max-width: 768px) {
-        .brawlers-grid {
-            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-            gap: 0.4rem;
-            padding: 0.75rem;
-        }
-        
-        .brawler-image {
-            width: 40px;
-            height: 40px;
-        }
+    body {
+        overflow-x: hidden;
     }
+    
+    .container {
+        padding: 1rem;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    
+    .meta-header {
+        padding: 1.5rem 0 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .meta-header::before {
+        width: 300px;
+        height: 300px;
+    }
+    
+    .meta-header h1 {
+        font-size: 2rem;
+        letter-spacing: -1px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .meta-header p {
+        font-size: 0.9rem;
+        padding: 0 1rem;
+    }
+    
+    .filters-section {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border-radius: 12px;
+    }
+    
+    .filter-group {
+        margin-bottom: 1rem;
+    }
+    
+    .filter-label {
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .filter-buttons {
+        gap: 0.5rem;
+    }
+    
+    .filter-btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.85rem;
+        border-radius: 6px;
+    }
+    
+    .tier-list-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .tier-list-image {
+        max-width: 95%;
+        border-radius: 6px;
+    }
+    
+    .stats-toggle {
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        overflow-x: hidden;
+    }
+    
+    .stats-toggle-header {
+        padding: 1.25rem 1rem;
+    }
+    
+    .stats-toggle-header h2 {
+        font-size: 1.2rem;
+    }
+    
+    .brawlers-section {
+        overflow-x: hidden;
+    }
+    
+    .brawlers-header {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: flex-start;
+    }
+    
+    .brawlers-header > span {
+        font-size: 1rem;
+        font-weight: 600;
+    }
+    
+    .sort-controls {
+        width: 100%;
+        justify-content: space-between;
+        gap: 0.4rem;
+    }
+    
+    .sort-btn {
+        flex: 1;
+        padding: 0.6rem 0.5rem;
+        font-size: 0.75rem;
+        justify-content: center;
+        text-align: center;
+    }
+    
+    .sort-icon {
+        font-size: 0.7rem;
+    }
+    
+    .brawlers-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        padding: 0.75rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .brawler-card {
+        padding: 0.5rem 0.25rem;
+        border-radius: 6px;
+        min-width: 0;
+        overflow: hidden;
+    }
+    
+    .brawler-rank {
+        width: 20px;
+        height: 20px;
+        font-size: 0.7rem;
+        top: 0.25rem;
+        left: 0.25rem;
+    }
+    
+    .brawler-image {
+        width: 50px;
+        height: 50px;
+        margin: 0.25rem auto 0.4rem;
+    }
+    
+    .brawler-name {
+        font-size: 0.75rem;
+        margin-bottom: 0.4rem;
+    }
+    
+    .brawler-stats {
+        gap: 0.25rem;
+        width: 100%;
+    }
+    
+    .stat-box {
+        padding: 0.25rem 0.15rem;
+        border-radius: 3px;
+        min-width: 0;
+    }
+    
+    .stat-label {
+        font-size: 0.55rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .stat-value {
+        font-size: 0.8rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    
+    .no-data {
+        padding: 2rem 1rem;
+        font-size: 0.95rem;
+    }
+}
+    
 </style>
 {% endblock %}
 

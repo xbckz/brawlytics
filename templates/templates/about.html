@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}About - Brawlytics{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .hero {
+        text-align: center;
+        margin-bottom: 3rem;
+        padding: 3rem 0 2rem;
+        position: relative;
+    }
+    
+    .hero::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 600px;
+        height: 600px;
+        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+        opacity: 0.1;
+        pointer-events: none;
+        z-index: -1;
+    }
+    
+    .hero h1 {
+        font-size: 3.5rem;
+        margin-bottom: 1rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -2px;
+    }
+    
+    .hero p {
+        color: var(--text-dim);
+        font-size: 1.25rem;
+        font-weight: 400;
+        max-width: 700px;
+        margin: 0 auto;
+        line-height: 1.6;
+    }
+
+    .content-section {
+        background: var(--card);
+        border-radius: 16px;
+        padding: 2.5rem;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255,255,255,0.05);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    }
+
+    .content-section h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        color: var(--text);
+        position: relative;
+        padding-left: 1rem;
+    }
+    
+    .content-section h2::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 4px;
+        height: 70%;
+        background: var(--primary);
+        border-radius: 2px;
+    }
+
+    .content-section h3 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 2rem 0 1rem;
+        color: var(--primary);
+    }
+
+    .content-section p {
+        color: var(--text-dim);
+        font-size: 1.05rem;
+        line-height: 1.8;
+        margin-bottom: 1.25rem;
+    }
+
+    .content-section ul {
+        list-style: none;
+        padding: 0;
+        margin: 1.5rem 0;
+    }
+
+    .content-section ul li {
+        color: var(--text-dim);
+        font-size: 1.05rem;
+        line-height: 1.8;
+        margin-bottom: 1rem;
+        padding-left: 2rem;
+        position: relative;
+    }
+
+    .content-section ul li::before {
+        content: "▸";
+        position: absolute;
+        left: 0.5rem;
+        color: var(--primary);
+        font-weight: bold;
+    }
+
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1.5rem;
+        margin: 2rem 0;
+    }
+
+    .feature-card {
+        background: var(--dark);
+        padding: 2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.05);
+        transition: all 0.3s ease;
+    }
+
+    
+
+    .feature-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .feature-card h4 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+        color: var(--text);
+    }
+
+    .feature-card p {
+        color: var(--text-dim);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    .cta-box {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--dark) 100%);
+        padding: 3rem;
+        border-radius: 16px;
+        text-align: center;
+        margin: 3rem 0;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .cta-box::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: pulse 4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+    .cta-box h3 {
+        font-size: 2rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        color: #ffffff;
+        position: relative;
+        z-index: 1;
+    }
+
+    .cta-box p {
+        color: rgba(255,255,255,0.9);
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .btn-discord {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: #5865F2;
+        color: white;
+        padding: 1rem 2.5rem;
+        border-radius: 12px;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+        position: relative;
+        z-index: 1;
+        box-shadow: 0 4px 16px rgba(88, 101, 242, 0.4);
+    }
+
+    .btn-discord:hover {
+        background: #4752C4;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(88, 101, 242, 0.6);
+    }
+
+    .mode-comparison {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin: 2rem 0;
+    }
+
+    .mode-card {
+        background: var(--dark);
+        padding: 2rem;
+        border-radius: 12px;
+        border: 2px solid rgba(255,255,255,0.05);
+    }
+
+    .mode-card h4 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .code-block {
+        background: var(--dark);
+        padding: 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid var(--primary);
+        margin: 1.5rem 0;
+        font-family: 'Courier New', monospace;
+        color: var(--text-dim);
+        font-size: 0.95rem;
+    }
+
+    @media (max-width: 768px) {
+        .hero h1 {
+            font-size: 2.5rem;
+        }
+        
+        .mode-comparison {
+            grid-template-columns: 1fr;
+        }
+        
+        .content-section {
+            padding: 1.5rem;
+        }
+        
+        .cta-box {
+            padding: 2rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>About Brawlytics</h1>
+    <p>Your comprehensive Brawl Stars competitive analytics platform</p>
+</div>
+
+<div class="content-section">
+    <h2>What is Brawlytics?</h2>
+    <p>
+        Brawlytics is an advanced statistics and analytics platform designed specifically for competitive Brawl Stars players and teams. 
+        It tracks matches, analyzes performance, and provides information about the brawler meta, player stats, team compositions, and more.
+    </p>
+    <p>
+        The platform uses the official Brawl Stars API to collect all of the data displayed, making it 100% accurate and up to date.
+    </p>
+</div>
+
+<div class="content-section">
+    <h2>Features</h2>
+    
+    <div class="feature-grid">
+        <div class="feature-card">
+            <h4>Match Tracking</h4>
+            <p>Track competitive matches with detailed statistics.</p>
+        </div>
+        
+        <div class="feature-card">
+            <h4>Brawler Analytics</h4>
+            <p>Performance, win rates, synergies, and matchups.</p>
+        </div>
+        
+        <div class="feature-card">
+            <h4>Map & Mode Stats</h4>
+            <p>Performance across maps showing best picks.</p>
+        </div>
+        
+        <div class="feature-card">
+            <h4>Meta Tier Lists</h4>
+            <p>Auto-generated tier lists updated in real-time.</p>
+        </div>
+        
+        <div class="feature-card">
+            <h4>Regional Stats</h4>
+            <p>Compare performance across all regions.</p>
+        </div>
+    </div>
+</div>
+
+<div class="content-section">
+    <h2>Two Modes for Tracking Data</h2>
+    
+    <div class="mode-comparison">
+        <div class="mode-card">
+            <h4>🏅 Season Mode</h4>
+            <p><strong>Perfect for:</strong> Competitive league season</p>
+            <ul>
+                <li>Track team performance and standings</li>
+                <li>Team-based leaderboards</li>
+                <li>Team vs team matchups</li>
+                <li>Regional team rankings</li>
+            </ul>
+        </div>
+        
+        <div class="mode-card">
+            <h4>🏖️ Off-Season Mode</h4>
+            <p><strong>Perfect for:</strong> Off-season period</p>
+            <ul>
+                <li>Track individual player stats</li>
+                <li>Personal brawler mastery</li>
+                <li>Teammate synergy analysis</li>
+                <li>Individual player leaderboards</li>
+            </ul>
+        </div>
+    </div>
+    
+    <p style="margin-top: 2rem;">
+        Switch between modes anytime in your <a href="/settings" style="color: var(--primary); text-decoration: none; font-weight: 600;">Settings</a>
+    </p>
+</div>
+
+<div class="content-section">
+    <h2>How It Works</h2>
+    
+    <h3>1. Visit Website or Add the Discord Bot</h3>
+    <p>
+        Visit this website or simply add the bot to your Discord server 
+        and grant it the necessary permissions to read messages.
+    </p>
+    
+    <h3>2. Access All Data</h3>
+    <p>
+        Now you have access to all the data you might need about competitive.
+    </p>
+    
+</div>
+
+<div class="content-section">
+    <h2>Understanding the Data</h2>
+    
+    <h3>Meta Score Calculation</h3>
+    <p>
+        The meta score combines win rate and pick rate to identify the most dominant brawlers:
+    </p>
+    <div class="code-block">
+        Meta Score = Win Rate × Pick Rate
+    </div>
+    <p>
+        This ensures that brawlers with both high win rates <em>and</em> frequent picks are ranked appropriately.
+    </p>
+    
+    <h3>Tier List Generation</h3>
+    <p>
+        Tier lists are automatically generated using percentile-based distribution:
+    </p>
+    <ul>
+        <li><strong style="color: #22c55e;">S Tier:</strong> Top 10% of brawlers</li>
+        <li><strong style="color: #84cc16;">A Tier:</strong> Next 20% (10-30%)</li>
+        <li><strong style="color: #eab308;">B Tier:</strong> Next 30% (30-60%)</li>
+        <li><strong style="color: #f97316;">C Tier:</strong> Next 25% (60-85%)</li>
+        <li><strong style="color: #ef4444;">D Tier:</strong> Next 10% (85-95%)</li>
+        <li><strong style="color: #991b1b;">F Tier:</strong> Bottom 5%</li>
+    </ul>
+    
+    <h3>Synergy & Matchups</h3>
+    <p>
+        Brawlytics tracks which brawlers work well together (teammates) and which brawlers counter each other (matchups) 
+        based on actual match outcomes. Minimum sample sizes ensure statistical reliability.
+    </p>
+</div>
+
+<div class="cta-box">
+    <h3>Want to use the Discord bot version?</h3>
+    <p>Add the Discord bot to your server and access all data even faster!</p>
+    <a href="https://discord.com/oauth2/authorize?client_id=1441177280557613076&permissions=2147585024&integration_type=0&scope=bot" 
+       class="btn-discord" target="_blank">
+        <svg width="24" height="24" viewBox="0 0 71 55" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g clip-path="url(#clip0)">
+                <path d="M60.1045 4.8978C55.5792 2.8214 50.7265 1.2916 45.6527 0.41542C45.5603 0.39851 45.468 0.440769 45.4204 0.525289C44.7963 1.6353 44.105 3.0834 43.6209 4.2216C38.1637 3.4046 32.7345 3.4046 27.3892 4.2216C26.905 3.0581 26.1886 1.6353 25.5617 0.525289C25.5141 0.443589 25.4218 0.40133 25.3294 0.41542C20.2584 1.2888 15.4057 2.8186 10.8776 4.8978C10.8384 4.9147 10.8048 4.9429 10.7825 4.9795C1.57795 18.7309 -0.943561 32.1443 0.293408 45.3914C0.299005 45.4562 0.335386 45.5182 0.385761 45.5576C6.45866 50.0174 12.3413 52.7249 18.1147 54.5195C18.2071 54.5477 18.305 54.5139 18.3638 54.4378C19.7295 52.5728 20.9469 50.6063 21.9907 48.5383C22.0523 48.4172 21.9935 48.2735 21.8676 48.2256C19.9366 47.4931 18.0979 46.6 16.3292 45.5858C16.1893 45.5041 16.1781 45.304 16.3068 45.2082C16.679 44.9293 17.0513 44.6391 17.4067 44.3461C17.471 44.2926 17.5606 44.2813 17.6362 44.3151C29.2558 49.6202 41.8354 49.6202 53.3179 44.3151C53.3935 44.2785 53.4831 44.2898 53.5502 44.3433C53.9057 44.6363 54.2779 44.9293 54.6529 45.2082C54.7816 45.304 54.7732 45.5041 54.6333 45.5858C52.8646 46.6197 51.0259 47.4931 49.0921 48.2228C48.9662 48.2707 48.9102 48.4172 48.9718 48.5383C50.038 50.6034 51.2554 52.5699 52.5959 54.435C52.6519 54.5139 52.7526 54.5477 52.845 54.5195C58.6464 52.7249 64.529 50.0174 70.6019 45.5576C70.6551 45.5182 70.6887 45.459 70.6943 45.3942C72.1747 30.0791 68.2147 16.7757 60.1968 4.9823C60.1772 4.9429 60.1437 4.9147 60.1045 4.8978ZM23.7259 37.3253C20.2276 37.3253 17.3451 34.1136 17.3451 30.1693C17.3451 26.225 20.1717 23.0133 23.7259 23.0133C27.308 23.0133 30.1626 26.2532 30.1066 30.1693C30.1066 34.1136 27.28 37.3253 23.7259 37.3253ZM47.3178 37.3253C43.8196 37.3253 40.9371 34.1136 40.9371 30.1693C40.9371 26.225 43.7636 23.0133 47.3178 23.0133C50.9 23.0133 53.7545 26.2532 53.6986 30.1693C53.6986 34.1136 50.9 37.3253 47.3178 37.3253Z" fill="currentColor"/>
+            </g>
+        </svg>
+        Add Discord Bot
+    </a>
+    <p style="margin-top: 1.5rem; font-size: 0.9rem; opacity: 0.8;">
+        Need help? Contact @xiaku on Discord.
+    </p>
+</div>
+
+<div class="content-section">
+    <h2>FAQ</h2>
+    
+    <h3>How accurate is the data?</h3>
+    <p>
+        The data is 100% accurate as it comes directly from the official Brawl Stars API. Only friendly games are tracked
+        to ensure consistency and reliability in competitive statistics.
+    </p>
+    
+    <h3>How often are stats updated?</h3>
+    <p>
+        Statistics are collected in real time. The dashboard uses caching (5 minute refresh) 
+        for optimal performance while keeping data up to date.
+    </p>
+    
+    <h3>How are tracked players added?</h3>
+<p>
+    Players are added to the suggested list after playing with already tracked players. They must then be manually approved before tracking begins.
+    This process ensures that all worthy players from every region are included.
+</p>
+
+
+
+    <h3>What if I find a bug?</h3>
+    <p>
+        Please report any issues through Discord. I continuously try to improve the platform based on user feedback.
+    </p>
+</div>
+
+{% endblock %}

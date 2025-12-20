@@ -90,13 +90,24 @@ TRIOS_CACHE_DURATION = 300
 def get_cache_key():
     """Generate a cache key based on user settings"""
     user_settings = load_json(USER_SETTINGS_FILE)
-    user_id = str(session.get('discord_id', 'test_user'))
+    user_id = get_user_id()
     user_prefs = user_settings.get(user_id, {})
     
     # Create a hash of relevant settings that affect data
     view_mode = user_prefs.get('view_mode', 'season')
     cache_key = f"{view_mode}_{user_prefs.get('date_range', '30d')}_{user_prefs.get('start_date', '')}_{user_prefs.get('end_date', '')}"
     return cache_key
+
+
+def get_user_id():
+    """Get or create a unique user ID for this session"""
+    if 'user_id' not in session:
+        # Generate a unique ID for this browser session
+        import uuid
+        session['user_id'] = str(uuid.uuid4())
+    return session['user_id']
+
+
 
 def get_cached_data():
     """Get cached data if valid, otherwise reload"""
@@ -116,7 +127,7 @@ def get_cached_data():
     print("Loading fresh data...")
     start_time = time.time()
     
-    data = load_matches_data()
+    data = load_matches_data()  # Returns 6 values now
     
     # Update cache
     _cache['data'] = data
@@ -127,6 +138,7 @@ def get_cached_data():
     print(f"Data loaded in {elapsed:.2f}s")
     
     return data
+
 
 def clear_cache():
     """Clear the cache (call this when settings change)"""
@@ -207,17 +219,15 @@ def is_user_authorized(discord_id):
 
 
 def load_bot_mode():
-    """Load current bot mode"""
-    mode_file = 'data/bot_mode.json'
-    if os.path.exists(mode_file):
-        with open(mode_file, 'r') as f:
-            data = json.load(f)
-            return data.get('mode', 'season')
-    return 'season'
+    """Load current user's bot mode from their settings"""
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    return user_prefs.get('view_mode', 'season')  # Use view_mode which already exists!
 
 def get_config_for_mode():
-    """Get configuration based on current mode"""
-    mode = load_bot_mode()
+    """Get configuration based on user's current mode"""
+    mode = load_bot_mode()  # This now reads from user settings
     
     if mode == 'offseason':
         return {
@@ -235,16 +245,97 @@ def get_config_for_mode():
         }
 
 
-def save_bot_mode(mode):
-    """Save bot mode"""
-    mode_file = 'data/bot_mode.json'
-    os.makedirs(os.path.dirname(mode_file), exist_ok=True)
-    with open(mode_file, 'w') as f:
-        json.dump({
-            'mode': mode,
-            'updated_at': datetime.now().isoformat()
-        }, f, indent=2)
-
+def calculate_synergies_for_season_filtered(brawler_name, mode_filter=None, map_filter=None):
+    """Calculate synergies from matches.xlsx with filters for season mode"""
+    matches_file = 'matches.xlsx'
+    
+    if not os.path.exists(matches_file):
+        return [], [], []
+    
+    try:
+        matches_df = pd.read_excel(matches_file)
+    except Exception as e:
+        print(f"Error loading {matches_file}: {e}")
+        return [], [], []
+    
+    # Track teammate and opponent stats
+    teammates_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
+    opponents_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
+    
+    for _, match in matches_df.iterrows():
+        mode = str(match.get('mode', 'Unknown'))
+        map_name_row = str(match.get('map', 'Unknown'))
+        
+        # Apply filters
+        if mode_filter and mode.lower().replace(' ', '_') != mode_filter.lower():
+            continue
+        if map_filter and map_name_row.lower().replace(' ', '_').replace("'", '').replace('-', '_') != map_filter.lower():
+            continue
+        
+        winner_name = str(match.get('winner', '')).strip()
+        
+        # Check both teams
+        for team_prefix in ['team1', 'team2']:
+            # Get team name
+            team_name = str(match.get(f'{team_prefix}_name', '')).strip()
+            
+            # Get brawlers for this team
+            team_brawlers = []
+            for i in range(1, 4):
+                brawler_col = f'{team_prefix}_player{i}_brawler'
+                brawler = str(match.get(brawler_col, '')).strip()
+                if brawler and brawler != 'nan':
+                    team_brawlers.append(brawler)
+            
+            # Check if our brawler is in this team
+            if brawler_name not in team_brawlers:
+                continue
+            
+            # This team has our brawler - track teammates
+            is_winner = (winner_name == team_name)
+            
+            for teammate_brawler in team_brawlers:
+                if teammate_brawler != brawler_name:
+                    teammates_stats[teammate_brawler]['picks'] += 1
+                    if is_winner:
+                        teammates_stats[teammate_brawler]['wins'] += 1
+            
+            # Track opponents (other team)
+            opponent_prefix = 'team2' if team_prefix == 'team1' else 'team1'
+            opponent_brawlers = []
+            for i in range(1, 4):
+                brawler_col = f'{opponent_prefix}_player{i}_brawler'
+                opp_brawler = str(match.get(brawler_col, '')).strip()
+                if opp_brawler and opp_brawler != 'nan':
+                    opponent_brawlers.append(opp_brawler)
+            
+            for opponent_brawler in opponent_brawlers:
+                opponents_stats[opponent_brawler]['picks'] += 1
+                if is_winner:
+                    opponents_stats[opponent_brawler]['wins'] += 1
+    
+    # Convert to lists with win rates
+    def convert_to_list(stats_dict, min_picks=3):
+        result = []
+        for brawler, data in stats_dict.items():
+            if data['picks'] >= min_picks:
+                win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
+                result.append({
+                    'name': brawler,
+                    'picks': data['picks'],
+                    'wins': data['wins'],
+                    'win_rate': win_rate
+                })
+        return sorted(result, key=lambda x: x['win_rate'], reverse=True)
+    
+    best_teammates = convert_to_list(teammates_stats)
+    
+    # For opponents: high win rate = good matchup
+    all_matchups = convert_to_list(opponents_stats)
+    best_matchups = sorted(all_matchups, key=lambda x: x['win_rate'], reverse=True)[:10]
+    worst_matchups = sorted(all_matchups, key=lambda x: x['win_rate'])[:10]
+    
+    return best_teammates[:10], best_matchups, worst_matchups
 
 
 def load_team_rosters():
@@ -348,10 +439,10 @@ def assign_brawlers_to_tiers_web(meta_scores):
 "****************************************"
 
 def load_matches_data():
-    """Load matches data using Rust processor"""
+    """Load BOTH season and offseason data using Rust processor"""
     global _brawler_synergies
     
-    user_id = str(session.get('discord_id', 'test_user'))
+    user_id = get_user_id()
     
     try:
         result_json = brawl_match_processor.load_matches_data(
@@ -363,33 +454,21 @@ def load_matches_data():
         
         result = json.loads(result_json)
         
-        
-        
         if 'error' in result:
             print(f"❌ ERROR FROM RUST: {result['error']}")
-            return None, {}, {}, {}, set()
+            return None, {}, {}, {}, {}, set()
         
         # Extract synergies
         _brawler_synergies = result.get('brawler_matchups', {})
         
-       
-        
-        # Print structure of first brawler
-        if _brawler_synergies:
-            first_brawler = list(_brawler_synergies.keys())[0]
-            
-        
-        teams_data = result.get('teams_data')
-        players_data = result.get('players_data')
-        data = teams_data if teams_data is not None else players_data
-        
-        if data is None:
-            print("⚠️ No data returned from Rust")
-            return None, {}, {}, {}, set()
+        # Get BOTH teams and players data
+        teams_data = result.get('teams_data', {})
+        players_data = result.get('players_data', {})
         
         return (
             None,
-            data,
+            teams_data,      # Season data
+            players_data,    # Offseason data
             result.get('region_stats', {}),
             result.get('mode_stats', {}),
             set(result.get('all_brawlers', []))
@@ -399,7 +478,7 @@ def load_matches_data():
         print(f"❌ PYTHON ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
-        return None, {}, {}, {}, set()
+        return None, {}, {}, {}, {}, set()
 
 
 def get_brawler_synergies(brawler_name):
@@ -643,7 +722,7 @@ def load_tracked_players_web():
 def inject_theme():
     """Make theme and view mode available to all templates"""
     user_settings = load_json(USER_SETTINGS_FILE)
-    user_id = str(session.get('discord_id', 'test_user'))
+    user_id = get_user_id()
     user_prefs = user_settings.get(user_id, {})
     view_mode = user_prefs.get('view_mode', 'season')
     
@@ -652,31 +731,37 @@ def inject_theme():
         'view_mode': view_mode
     }
 
-@app.before_request
-def require_auth():
-    """Require authentication for all pages except auth"""
-    if request.endpoint not in ['auth', 'index', 'static'] and 'discord_id' not in session:
-        return redirect('/auth')
 
 @app.route('/')
 def index():
-    if 'discord_id' in session:
-        return redirect('/dashboard')
-    return redirect('/auth')  # Force login in production
+    return redirect('/dashboard')  # Remove the session check
 
 
 @app.route('/dashboard')
 def dashboard():
     try:
-        matches_df, data, region_stats, mode_stats, all_brawlers = get_cached_data()
+        matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
         
+
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = get_user_id()
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+
+        # Use the appropriate data
+        if view_mode == 'offseason':
+            data = players_data
+        else:
+            data = teams_data
+
+
         if data is None or not data:
             print("❌ No data returned")
             return "Error loading data - no data returned", 500
         
         # Get user's view mode
         user_settings = load_json(USER_SETTINGS_FILE)
-        user_id = str(session.get('discord_id', 'test_user'))
+        user_id = get_user_id()
         user_prefs = user_settings.get(user_id, {})
         view_mode = user_prefs.get('view_mode', 'season')
         
@@ -734,7 +819,7 @@ def dashboard():
             
             # Render template
             return render_template('dashboard_offseason.html',
-                                 user=session.get('discord_tag', 'Unknown'),
+                                 user=session.get('discord_tag', 'Guest'),
                                  total_matches=total_matches,
                                  total_players=len(data),
                                  total_brawlers=len(all_brawlers),
@@ -764,7 +849,7 @@ def dashboard():
             total_matches = sum(team.get('matches', 0) for team in data.values())
             
             return render_template('dashboard.html',
-                                 user=session.get('discord_tag', 'Unknown'),
+                                 user=session.get('discord_tag', 'Guest'),
                                  total_matches=total_matches,
                                  total_teams=len(data),
                                  total_brawlers=len(all_brawlers),
@@ -781,9 +866,18 @@ def dashboard():
 def region_page(region_name):
     try:
         region_name = region_name.upper()
-        matches_df, data, region_stats, mode_stats, all_brawlers = get_cached_data()
+        matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
         
-        
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = get_user_id()
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+
+        # Use the appropriate data
+        if view_mode == 'offseason':
+            data = players_data
+        else:
+            data = teams_data
         
         if data is None or not data:
             print("❌ No data")
@@ -791,7 +885,7 @@ def region_page(region_name):
         
         # Get user's view mode
         user_settings = load_json(USER_SETTINGS_FILE)
-        user_id = str(session.get('discord_id', 'test_user'))
+        user_id = get_user_id()
         user_prefs = user_settings.get(user_id, {})
         view_mode = user_prefs.get('view_mode', 'season')
         
@@ -836,7 +930,7 @@ def region_page(region_name):
             
             # Use the offseason template
             return render_template('region_offseason.html',
-                                 user=session.get('discord_tag', 'Unknown'),
+                                 user=session.get('discord_tag', 'Guest'),
                                  region=title,
                                  region_code=region_name,
                                  total_matches=total_matches,
@@ -871,7 +965,7 @@ def region_page(region_name):
             total_matches = sum(t.get('matches', 0) for t in region_teams.values() if isinstance(t, dict))
             
             return render_template('region.html',
-                                 user=session.get('discord_tag', 'Unknown'),
+                                 user=session.get('discord_tag', 'Guest'),
                                  region=title,
                                  region_code=region_name,
                                  total_matches=total_matches,
@@ -917,7 +1011,18 @@ def test_region():
 
 @app.route('/team/<team_name>')
 def team_page(team_name):
-    _, teams_data, _, _, _ = get_cached_data()
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data
+    if view_mode == 'offseason':
+        data = players_data
+    else:
+        data = teams_data
     
     if team_name not in teams_data:
         return "Team not found", 404
@@ -925,13 +1030,24 @@ def team_page(team_name):
     team = teams_data[team_name]
     
     return render_template('team.html',
-                         user=session['discord_tag'],
+                         user=session.get('discord_tag', 'Guest'),
                          team_name=team_name,
                          team=team)
 
 @app.route('/team/<team_name>/mode/<mode>')
 def team_mode_page(team_name, mode):
-    _, teams_data, _, _, _ = get_cached_data()
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data
+    if view_mode == 'offseason':
+        data = players_data
+    else:
+        data = teams_data
     
     if team_name not in teams_data:
         return "Team not found", 404
@@ -944,7 +1060,7 @@ def team_mode_page(team_name, mode):
     mode_data = team['modes'][mode]
     
     return render_template('team_mode.html',
-                         user=session['discord_tag'],
+                         user=session.get('discord_tag', 'Guest'),
                          team_name=team_name,
                          team=team,
                          mode=mode,
@@ -952,7 +1068,18 @@ def team_mode_page(team_name, mode):
 
 @app.route('/team/<team_name>/mode/<mode>/map/<map_name>')
 def team_map_page(team_name, mode, map_name):
-    _, teams_data, _, _, _ = get_cached_data()
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data
+    if view_mode == 'offseason':
+        data = players_data
+    else:
+        data = teams_data
     
     if team_name not in teams_data:
         return "Team not found", 404
@@ -965,7 +1092,7 @@ def team_map_page(team_name, mode, map_name):
     map_data = team['modes'][mode]['maps'][map_name]
     
     return render_template('team_map.html',
-                         user=session['discord_tag'],
+                         user=session.get('discord_tag', 'Guest'),
                          team_name=team_name,
                          team=team,
                          mode=mode,
@@ -977,14 +1104,14 @@ def team_map_page(team_name, mode, map_name):
 @app.route('/about')
 def about_page():
     return render_template('about.html',
-                         user=session.get('discord_tag', 'Unknown'))
+                         user=session.get('discord_tag', 'Guest'))
 
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
     if request.method == 'POST':
         user_settings = load_json(USER_SETTINGS_FILE)
-        user_id = str(session['discord_id'])
+        user_id = get_user_id()  # FIXED: Use .get() not []
         
         theme = request.form.get('theme', 'red')
         date_range = request.form.get('date_range', '30d')
@@ -1028,8 +1155,6 @@ def settings():
             'view_mode': view_mode
         }
         
-        
-        
         save_json(USER_SETTINGS_FILE, user_settings)
         
         # IMPORTANT: Clear cache when settings change
@@ -1041,7 +1166,7 @@ def settings():
     
     # GET request - load current settings
     current_settings = load_json(USER_SETTINGS_FILE)
-    user_id = str(session['discord_id'])
+    user_id = get_user_id()  # FIXED: Use .get() not []
     user_prefs = current_settings.get(user_id, {})
     
     current_theme = user_prefs.get('theme', 'red')
@@ -1070,15 +1195,13 @@ def settings():
     current_view_mode = user_prefs.get('view_mode', 'season')
     
     return render_template('settings.html',
-                         user=session['discord_tag'],
+                         user=session.get('discord_tag', 'Guest'),
                          themes=THEMES,
                          current_theme=current_theme,
                          current_date_range=current_date_range,
                          start_date=start_date,
                          end_date=end_date,
                          current_view_mode=current_view_mode)
-
-
 
 @app.route('/logout')
 def logout():
@@ -1093,10 +1216,47 @@ def meta_page():
     region = request.args.get('region', 'ALL').upper()
     mode = request.args.get('mode', 'ALL')
     
-    _, teams_data, _, _, _ = get_cached_data()
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    # ADDED: Check if data is None
+    if teams_data is None:
+        teams_data = {}
+    if players_data is None:
+        players_data = {}
+    
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data source
+    if view_mode == 'offseason':
+        # In offseason mode, we need to aggregate from players_data
+        data_source = players_data
+        
+        # Build teams_data equivalent from players_data
+        teams_data = {}
+        for player_tag, player in data_source.items():
+            if not isinstance(player, dict):
+                continue
+            
+            player_region = player.get('region', 'NA')
+            player_modes = player.get('modes', {})
+            
+            if not isinstance(player_modes, dict):
+                continue
+            
+            # Create a virtual "team" for this player
+            teams_data[player_tag] = {
+                'region': player_region,
+                'modes': player_modes
+            }
+    
+    # ADDED: Final check
+    if not teams_data or not isinstance(teams_data, dict):
+        return "Error: No data available for meta page", 500
     
     # Collect brawler stats based on filters
-    # Use the SAME data source as load_matches_data already processed
     brawler_stats = defaultdict(lambda: {
         'picks': 0,
         'wins': 0
@@ -1105,27 +1265,49 @@ def meta_page():
     total_picks = 0
     
     for team_name, team in teams_data.items():
-        team_region = team['region']
+        if not isinstance(team, dict):
+            continue
+            
+        team_region = team.get('region', 'NA')
         
         # Filter by region
         if region != 'ALL' and team_region != region:
             continue
         
-        for mode_name, mode_data in team['modes'].items():
+        team_modes = team.get('modes', {})
+        if not isinstance(team_modes, dict):
+            continue
+        
+        for mode_name, mode_data in team_modes.items():
             if mode_name not in VALID_MODES:
+                continue
+            
+            if not isinstance(mode_data, dict):
                 continue
             
             # Filter by mode
             if mode != 'ALL' and mode_name != mode:
                 continue
+            
+            mode_maps = mode_data.get('maps', {})
+            if not isinstance(mode_maps, dict):
+                continue
                 
-            for map_name, map_data in mode_data['maps'].items():
-                for brawler, brawler_data in map_data['brawlers'].items():
-                    # This data is ALREADY deduplicated by load_matches_data
-                    brawler_stats[brawler]['picks'] += brawler_data['picks']
-                    brawler_stats[brawler]['wins'] += brawler_data['wins']
-                    total_picks += brawler_data['picks']
-    
+            for map_name, map_data in mode_maps.items():
+                if not isinstance(map_data, dict):
+                    continue
+                    
+                map_brawlers = map_data.get('brawlers', {})
+                if not isinstance(map_brawlers, dict):
+                    continue
+                    
+                for brawler, brawler_data in map_brawlers.items():
+                    if not isinstance(brawler_data, dict):
+                        continue
+                        
+                    brawler_stats[brawler]['picks'] += brawler_data.get('picks', 0)
+                    brawler_stats[brawler]['wins'] += brawler_data.get('wins', 0)
+                    total_picks += brawler_data.get('picks', 0)
     
     meta_brawlers = []
     for brawler, data in brawler_stats.items():
@@ -1143,17 +1325,137 @@ def meta_page():
     # Get all modes for filter buttons
     all_modes = set()
     for team in teams_data.values():
-        for mode_name in team['modes'].keys():
-            if mode_name in VALID_MODES:
-                all_modes.add(mode_name)
+        if not isinstance(team, dict):
+            continue
+        team_modes = team.get('modes', {})
+        if isinstance(team_modes, dict):
+            for mode_name in team_modes.keys():
+                if mode_name in VALID_MODES:
+                    all_modes.add(mode_name)
     
     return render_template('meta.html',
-                         user=session['discord_tag'],
+                         user=session.get('discord_tag', 'Guest'),
                          meta_brawlers=meta_brawlers,
                          total_picks=total_picks,
                          modes=sorted(all_modes),
                          current_region=region,
                          current_mode=mode)
+
+
+@app.route('/brawlers')
+def brawlers_page():
+    """Main brawlers overview page"""
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    # ADDED: Check if data is None
+    if teams_data is None:
+        teams_data = {}
+    if players_data is None:
+        players_data = {}
+    
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data source
+    if view_mode == 'offseason':
+        # In offseason mode, we need to aggregate from players_data
+        data_source = players_data
+        
+        # Build teams_data equivalent from players_data
+        teams_data = {}
+        for player_tag, player in data_source.items():
+            if not isinstance(player, dict):
+                continue
+            
+            player_region = player.get('region', 'NA')
+            player_modes = player.get('modes', {})
+            
+            if not isinstance(player_modes, dict):
+                continue
+            
+            # Create a virtual "team" for this player
+            teams_data[player_tag] = {
+                'region': player_region,
+                'modes': player_modes
+            }
+    
+    # ADDED: Final check
+    if not teams_data or not isinstance(teams_data, dict):
+        return "Error: No data available for brawlers page", 500
+    
+    # Collect comprehensive brawler stats
+    brawler_stats = defaultdict(lambda: {
+        'picks': 0,
+        'wins': 0,
+        'modes': defaultdict(lambda: {'picks': 0, 'wins': 0}),
+        'maps': defaultdict(lambda: {'picks': 0, 'wins': 0}),
+        'teammates': defaultdict(lambda: {'picks': 0, 'wins': 0}),
+        'opponents': defaultdict(lambda: {'picks': 0, 'wins': 0})
+    })
+    
+    total_picks = 0
+    
+    for team_name, team in teams_data.items():
+        if not isinstance(team, dict):
+            continue
+            
+        team_modes = team.get('modes', {})
+        if not isinstance(team_modes, dict):
+            continue
+            
+        for mode, mode_data in team_modes.items():
+            if mode in ['Unknown', 'nan', '', 'None'] or not isinstance(mode_data, dict):
+                continue
+            
+            mode_maps = mode_data.get('maps', {})
+            if not isinstance(mode_maps, dict):
+                continue
+                
+            for map_name, map_data in mode_maps.items():
+                if not isinstance(map_data, dict):
+                    continue
+                    
+                map_brawlers = map_data.get('brawlers', {})
+                if not isinstance(map_brawlers, dict):
+                    continue
+                    
+                for brawler, brawler_data in map_brawlers.items():
+                    if not isinstance(brawler_data, dict):
+                        continue
+                        
+                    stats = brawler_stats[brawler]
+                    stats['picks'] += brawler_data.get('picks', 0)
+                    stats['wins'] += brawler_data.get('wins', 0)
+                    stats['modes'][mode]['picks'] += brawler_data.get('picks', 0)
+                    stats['modes'][mode]['wins'] += brawler_data.get('wins', 0)
+                    stats['maps'][map_name]['picks'] += brawler_data.get('picks', 0)
+                    stats['maps'][map_name]['wins'] += brawler_data.get('wins', 0)
+                    total_picks += brawler_data.get('picks', 0)
+    
+    # Sort brawlers by picks
+    brawlers_list = []
+    for brawler, data in brawler_stats.items():
+        if data['picks'] >= 2:
+            win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
+            pick_rate = (data['picks'] / total_picks * 100) if total_picks > 0 else 0
+            brawlers_list.append({
+                'name': brawler,
+                'picks': data['picks'],
+                'wins': data['wins'],
+                'win_rate': win_rate,
+                'pick_rate': pick_rate
+            })
+    
+    brawlers_list.sort(key=lambda x: x['picks'], reverse=True)
+    
+    return render_template('brawlers.html',
+                         user=session.get('discord_tag', 'Guest'),
+                         brawlers=brawlers_list,
+                         total_picks=total_picks)
+
+
 
 @app.route('/api/meta/generate')
 def generate_meta_tier_list():
@@ -1164,11 +1466,22 @@ def generate_meta_tier_list():
         
         
         
-        _, teams_data, _, _, _ = get_cached_data()
-        
-        if not teams_data:
-            print("No teams data available")
-            return "No data available", 404
+        matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = get_user_id()
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+
+        if view_mode == 'offseason':
+            if not players_data:
+                return "No player data available", 404
+            data = players_data
+        else:
+            if not teams_data:
+                return "No team data available", 404
+            data = teams_data
+
     except:
         print("!")
         
@@ -1176,7 +1489,8 @@ def generate_meta_tier_list():
     brawler_stats = defaultdict(lambda: {'picks': 0, 'wins': 0})
     total_picks = 0
     
-    for team_name, team in teams_data.items():
+    for team_name, team in data.items():
+
         # Filter by region
         if region != 'ALL' and team['region'] != region:
             continue
@@ -1428,60 +1742,6 @@ def generate_tier_list_image(tier_lists, region, mode, tier_config):
     
     return img
 
-@app.route('/brawlers')
-def brawlers_page():
-    """Main brawlers overview page"""
-    _, teams_data, _, _, all_brawlers = get_cached_data()
-    
-    # Collect comprehensive brawler stats
-    brawler_stats = defaultdict(lambda: {
-        'picks': 0,
-        'wins': 0,
-        'modes': defaultdict(lambda: {'picks': 0, 'wins': 0}),
-        'maps': defaultdict(lambda: {'picks': 0, 'wins': 0}),
-        'teammates': defaultdict(lambda: {'picks': 0, 'wins': 0}),
-        'opponents': defaultdict(lambda: {'picks': 0, 'wins': 0})
-    })
-    
-    total_picks = 0
-    
-    for team_name, team in teams_data.items():
-        for mode, mode_data in team['modes'].items():
-            if mode in ['Unknown', 'nan', '', 'None']:
-                continue
-                
-            for map_name, map_data in mode_data['maps'].items():
-                for brawler, brawler_data in map_data['brawlers'].items():
-                    stats = brawler_stats[brawler]
-                    stats['picks'] += brawler_data['picks']
-                    stats['wins'] += brawler_data['wins']
-                    stats['modes'][mode]['picks'] += brawler_data['picks']
-                    stats['modes'][mode]['wins'] += brawler_data['wins']
-                    stats['maps'][map_name]['picks'] += brawler_data['picks']
-                    stats['maps'][map_name]['wins'] += brawler_data['wins']
-                    total_picks += brawler_data['picks']
-    
-    # Sort brawlers by picks
-    brawlers_list = []
-    for brawler, data in brawler_stats.items():
-        if data['picks'] >= 2:
-            win_rate = (data['wins'] / data['picks'] * 100) if data['picks'] > 0 else 0
-            pick_rate = (data['picks'] / total_picks * 100) if total_picks > 0 else 0
-            brawlers_list.append({
-                'name': brawler,
-                'picks': data['picks'],
-                'wins': data['wins'],
-                'win_rate': win_rate,
-                'pick_rate': pick_rate
-            })
-    
-    brawlers_list.sort(key=lambda x: x['picks'], reverse=True)
-    
-    return render_template('brawlers.html',
-                         user=session['discord_tag'],
-                         brawlers=brawlers_list,
-                         total_picks=total_picks)
-
 
 # Replace the brawler_detail_page function in website.py
 
@@ -1489,18 +1749,21 @@ def brawlers_page():
 def brawler_detail_page(brawler_name):
     """Detailed brawler statistics page"""
     try:
-        matches_df, data, region_stats, _, _ = get_cached_data()
-        
-      
+        matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = get_user_id()
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+
+        # Use the appropriate data
+        if view_mode == 'offseason':
+            data = players_data
+        else:
+            data = teams_data
         
         if data is None or not data:
             return "Error loading data", 500
-        
-        # Get user's view mode
-        user_settings = load_json(USER_SETTINGS_FILE)
-        user_id = str(session.get('discord_id', 'test_user'))
-        user_prefs = user_settings.get(user_id, {})
-        view_mode = user_prefs.get('view_mode', 'season')
         
         # Initialize brawler stats
         brawler_stats = {
@@ -1617,12 +1880,18 @@ def brawler_detail_page(brawler_name):
                     })
         best_maps.sort(key=lambda x: x['win_rate'], reverse=True)
         
-        # NEW: Get synergies from global cache
+        # Use the Rust-calculated synergies from global cache
+        # This works for BOTH season and offseason modes
         best_teammates, best_matchups, worst_matchups = get_brawler_synergies(brawler_name)
-        
+
+        print(f"🔍 DEBUG for {brawler_name}:")
+        print(f"  View mode: {view_mode}")
+        print(f"  Best teammates: {best_teammates}")
+        print(f"  Best matchups: {best_matchups}")
+        print(f"  Worst matchups: {worst_matchups}")
         
         return render_template('brawler_detail.html',
-                             user=session.get('discord_tag', 'Unknown'),
+                             user=session.get('discord_tag', 'Guest'),
                              brawler_name=brawler_name,
                              stats=brawler_stats,
                              overall_winrate=overall_winrate,
@@ -1639,7 +1908,6 @@ def brawler_detail_page(brawler_name):
         return f"Brawler detail error: {e}", 500
 
 
-
 @app.route('/modes/<mode_name>')
 def mode_detail_page(mode_name):
     """Detailed mode statistics page"""
@@ -1649,14 +1917,25 @@ def mode_detail_page(mode_name):
         
         
         
-        matches_df, data, _, mode_stats, _ = get_cached_data()
+        matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = get_user_id()
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+
+        # Use the appropriate data
+        if view_mode == 'offseason':
+            data = players_data
+        else:
+            data = teams_data
         
         if data is None or not data:
             return "Error loading data", 500
         
         # Get user's view mode
         user_settings = load_json(USER_SETTINGS_FILE)
-        user_id = str(session.get('discord_id', 'test_user'))
+        user_id = get_user_id()
         user_prefs = user_settings.get(user_id, {})
         view_mode = user_prefs.get('view_mode', 'season')
         
@@ -1769,7 +2048,7 @@ def mode_detail_page(mode_name):
         
         
         return render_template('mode_detail.html',
-                            user=session.get('discord_tag', 'Unknown'),
+                            user=session.get('discord_tag', 'Guest'),
                             mode_name=mode_display,
                             total_games=mode_stats_data['total_games'],
                             total_maps=len(mode_stats_data['maps']),
@@ -1795,11 +2074,22 @@ def player_page(player_tag):
         player_tag = '#' + player_tag
     player_tag = player_tag.upper().replace('0', 'O')
     
-    _, data, _, _, _ = get_cached_data()
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data
+    if view_mode == 'offseason':
+        data = players_data
+    else:
+        data = teams_data
     
     # Get user's view mode
     user_settings = load_json(USER_SETTINGS_FILE)
-    user_id = str(session.get('discord_id', 'test_user'))
+    user_id = get_user_id()
     user_prefs = user_settings.get(user_id, {})
     view_mode = user_prefs.get('view_mode', 'season')
     
@@ -1873,7 +2163,7 @@ def player_page(player_tag):
         }
         
         return render_template('player_offseason.html',
-                             user=session['discord_tag'],
+                             user=session.get('discord_tag', 'Guest'),
                              player=player)
     
     else:
@@ -1925,7 +2215,7 @@ def player_page(player_tag):
         }
         
         return render_template('player.html',
-                             user=session['discord_tag'],
+                             user=session.get('discord_tag', 'Guest'),
                              player=player)
 
 
@@ -1956,8 +2246,18 @@ def get_cached_trios():
     print("⚙ Calculating trios...")
     start_time = time.time()
     
-    _, data, _, _, _ = get_cached_data()
-    players_data = data
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data
+    if view_mode == 'offseason':
+        data = players_data
+    else:
+        data = teams_data
     
     # Load matches file
     matches_file = 'matches_off.xlsx'
@@ -2024,7 +2324,7 @@ def possible_teams_page():
     
     # Get user's view mode
     user_settings = load_json(USER_SETTINGS_FILE)
-    user_id = str(session.get('discord_id', 'test_user'))
+    user_id = get_user_id()
     user_prefs = user_settings.get(user_id, {})
     view_mode = user_prefs.get('view_mode', 'season')
     
@@ -2093,7 +2393,7 @@ def possible_teams_page():
                 break
     
     return render_template('possible_teams.html',
-                         user=session['discord_tag'],
+                         user=session.get('discord_tag', 'Guest'),
                          trios=unique_trios,
                          sort_by=sort_by,
                          current_region=region,
@@ -2104,11 +2404,22 @@ def possible_teams_page():
 @app.route('/players')
 def players_page():
     """Players overview page - only available in offseason mode"""
-    _, data, _, _, _ = get_cached_data()
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data
+    if view_mode == 'offseason':
+        data = players_data
+    else:
+        data = teams_data
     
     # Get user's view mode
     user_settings = load_json(USER_SETTINGS_FILE)
-    user_id = str(session.get('discord_id', 'test_user'))
+    user_id = get_user_id()
     user_prefs = user_settings.get(user_id, {})
     view_mode = user_prefs.get('view_mode', 'season')
     
@@ -2147,7 +2458,7 @@ def players_page():
     players_list.sort(key=lambda x: x['games'], reverse=True)
     
     return render_template('players.html',
-                         user=session['discord_tag'],
+                         user=session.get('discord_tag', 'Guest'),
                          players=players_list)
 
 
@@ -2159,14 +2470,25 @@ def map_detail_page(map_name):
         map_display = map_name.replace('_', ' ').title()
         
         
-        matches_df, data, _, _, _ = get_cached_data()
+        matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = get_user_id()
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+
+        # Use the appropriate data
+        if view_mode == 'offseason':
+            data = players_data
+        else:
+            data = teams_data
         
         if data is None or not data:
             return "Error loading data", 500
         
         # Get user's view mode
         user_settings = load_json(USER_SETTINGS_FILE)
-        user_id = str(session.get('discord_id', 'test_user'))
+        user_id = get_user_id()
         user_prefs = user_settings.get(user_id, {})
         view_mode = user_prefs.get('view_mode', 'season')
         
@@ -2271,7 +2593,7 @@ def map_detail_page(map_name):
         
         
         return render_template('map_detail.html',
-                            user=session.get('discord_tag', 'Unknown'),
+                            user=session.get('discord_tag', 'Guest'),
                             map_name=map_display,
                             mode_name=map_stats['mode'],
                             total_games=map_stats['total_games'],
@@ -2289,7 +2611,18 @@ def map_detail_page(map_name):
 def brawler_mode_page(brawler_name, mode_name):
     """Brawler performance in a specific mode"""
     try:
-        matches_df, data, region_stats, _, _ = get_cached_data()
+        matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = get_user_id()
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+
+        # Use the appropriate data
+        if view_mode == 'offseason':
+            data = players_data
+        else:
+            data = teams_data
         
         
         if data is None or not data:
@@ -2300,7 +2633,7 @@ def brawler_mode_page(brawler_name, mode_name):
         
         # Get user's view mode
         user_settings = load_json(USER_SETTINGS_FILE)
-        user_id = str(session.get('discord_id', 'test_user'))
+        user_id = get_user_id()
         user_prefs = user_settings.get(user_id, {})
         view_mode = user_prefs.get('view_mode', 'season')
         
@@ -2403,15 +2736,22 @@ def brawler_mode_page(brawler_name, mode_name):
         maps.sort(key=lambda x: x['win_rate'], reverse=True)
         
         overall_winrate = (brawler_mode_stats['wins'] / brawler_mode_stats['picks'] * 100) if brawler_mode_stats['picks'] > 0 else 0
-        
-        # Get MODE-SPECIFIC synergies
-        best_teammates, best_matchups, worst_matchups = get_brawler_synergies_filtered(
-            brawler_name, 
-            mode_filter=mode_name
-        )
+
+        # NEW CODE:
+        if view_mode == 'offseason':
+            best_teammates, best_matchups, worst_matchups = get_brawler_synergies_filtered(
+                brawler_name, 
+                mode_filter=mode_name
+            )
+        else:
+            # Season mode - calculate from matches.xlsx
+            best_teammates, best_matchups, worst_matchups = calculate_synergies_for_season_filtered(
+                brawler_name,
+                mode_filter=mode_name
+            )
         
         return render_template('brawler_mode.html',
-                             user=session.get('discord_tag', 'Unknown'),
+                             user=session.get('discord_tag', 'Guest'),
                              brawler_name=brawler_name,
                              mode_name=mode_display,
                              stats=brawler_mode_stats,
@@ -2432,7 +2772,18 @@ def brawler_mode_page(brawler_name, mode_name):
 def brawler_map_page(brawler_name, map_name):
     """Brawler performance on a specific map"""
     try:
-        matches_df, data, region_stats, _, _ = get_cached_data()
+        matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+        user_settings = load_json(USER_SETTINGS_FILE)
+        user_id = get_user_id()
+        user_prefs = user_settings.get(user_id, {})
+        view_mode = user_prefs.get('view_mode', 'season')
+
+        # Use the appropriate data
+        if view_mode == 'offseason':
+            data = players_data
+        else:
+            data = teams_data
         
         
         if data is None or not data:
@@ -2443,7 +2794,7 @@ def brawler_map_page(brawler_name, map_name):
         
         # Get user's view mode
         user_settings = load_json(USER_SETTINGS_FILE)
-        user_id = str(session.get('discord_id', 'test_user'))
+        user_id = get_user_id()
         user_prefs = user_settings.get(user_id, {})
         view_mode = user_prefs.get('view_mode', 'season')
         
@@ -2532,14 +2883,22 @@ def brawler_map_page(brawler_name, map_name):
         
         
         overall_winrate = (brawler_map_stats['wins'] / brawler_map_stats['picks'] * 100) if brawler_map_stats['picks'] > 0 else 0
-        
-        best_teammates, best_matchups, worst_matchups = get_brawler_synergies_filtered(
-            brawler_name,
-            map_filter=map_name
-        )
+
+        # NEW CODE:
+        if view_mode == 'offseason':
+            best_teammates, best_matchups, worst_matchups = get_brawler_synergies_filtered(
+                brawler_name,
+                map_filter=map_name
+            )
+        else:
+            # Season mode - calculate from matches.xlsx
+            best_teammates, best_matchups, worst_matchups = calculate_synergies_for_season_filtered(
+                brawler_name,
+                map_filter=map_name
+            )
         
         return render_template('brawler_map.html',
-                             user=session.get('discord_tag', 'Unknown'),
+                             user=session.get('discord_tag', 'Guest'),
                              brawler_name=brawler_name,
                              map_name=map_display,
                              mode_name=brawler_map_stats['mode'],
@@ -2556,13 +2915,24 @@ def brawler_map_page(brawler_name, map_name):
         return f"Brawler-map error: {e}", 500
 
 
-
 @app.route('/modes')
 def modes_overview():
     """Overview page for all game modes"""
-    _, teams_data, _, mode_stats, _ = get_cached_data()
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data
+    if view_mode == 'offseason':
+        data = players_data
+    else:
+        data = teams_data
     
-    if not teams_data:
+    # FIXED: Check the correct data variable
+    if not data or data is None:
         return "Error loading data", 500
     
     # Collect comprehensive mode statistics
@@ -2572,36 +2942,55 @@ def modes_overview():
         'brawlers': defaultdict(lambda: {'picks': 0, 'wins': 0})
     })
     
-    for team_name, team in teams_data.items():
-        for mode_name, mode_data in team['modes'].items():
+    # FIXED: Iterate over 'data' instead of 'teams_data'
+    for entity_name, entity in data.items():
+        if not isinstance(entity, dict):
+            continue
+        
+        entity_modes = entity.get('modes', {})
+        if not isinstance(entity_modes, dict):
+            continue
+        
+        for mode_name, mode_data in entity_modes.items():
             if mode_name not in VALID_MODES:
+                continue
+            
+            if not isinstance(mode_data, dict):
                 continue
             
             # Count games
             modes_data[mode_name]['total_games'] += mode_data.get('matches', 0)
             
             # Track maps
-            for map_name in mode_data.get('maps', {}).keys():
-                modes_data[mode_name]['maps'].add(map_name)
-            
-            # Track brawler stats
-            for map_name, map_data in mode_data.get('maps', {}).items():
-                for brawler, brawler_data in map_data.get('brawlers', {}).items():
-                    modes_data[mode_name]['brawlers'][brawler]['picks'] += brawler_data['picks']
-                    modes_data[mode_name]['brawlers'][brawler]['wins'] += brawler_data['wins']
+            mode_maps = mode_data.get('maps', {})
+            if isinstance(mode_maps, dict):
+                for map_name in mode_maps.keys():
+                    modes_data[mode_name]['maps'].add(map_name)
+                
+                # Track brawler stats
+                for map_name, map_data in mode_maps.items():
+                    if not isinstance(map_data, dict):
+                        continue
+                    
+                    map_brawlers = map_data.get('brawlers', {})
+                    if isinstance(map_brawlers, dict):
+                        for brawler, brawler_data in map_brawlers.items():
+                            if isinstance(brawler_data, dict):
+                                modes_data[mode_name]['brawlers'][brawler]['picks'] += brawler_data.get('picks', 0)
+                                modes_data[mode_name]['brawlers'][brawler]['wins'] += brawler_data.get('wins', 0)
     
     # Build modes list with stats
     modes_list = []
-    for mode_name, data in modes_data.items():
+    for mode_name, mode_info in modes_data.items():
         # Find top brawler for this mode using meta score (win_rate * pick_rate)
         top_brawler = None
-        if data['brawlers']:
+        if mode_info['brawlers']:
             # Calculate total picks for this mode
-            total_picks = sum(b['picks'] for b in data['brawlers'].values())
+            total_picks = sum(b['picks'] for b in mode_info['brawlers'].values())
             
             # Calculate meta score for each brawler
             brawler_scores = []
-            for brawler_name, brawler_data in data['brawlers'].items():
+            for brawler_name, brawler_data in mode_info['brawlers'].items():
                 if brawler_data['picks'] >= 5:  # Minimum 5 picks
                     win_rate = (brawler_data['wins'] / brawler_data['picks'] * 100)
                     pick_rate = (brawler_data['picks'] / total_picks * 100) if total_picks > 0 else 0
@@ -2624,9 +3013,9 @@ def modes_overview():
         
         modes_list.append({
             'name': mode_name,
-            'total_games': data['total_games'],
-            'total_maps': len(data['maps']),
-            'total_brawlers': len(data['brawlers']),
+            'total_games': mode_info['total_games'],
+            'total_maps': len(mode_info['maps']),
+            'total_brawlers': len(mode_info['brawlers']),
             'top_brawler': top_brawler
         })
     
@@ -2634,14 +3023,23 @@ def modes_overview():
     modes_list.sort(key=lambda x: x['total_games'], reverse=True)
     
     return render_template('modes_overview.html',
-                         user=session['discord_tag'],
+                         user=session.get('discord_tag', 'Guest'),
                          modes=modes_list)
-
-
 
 @app.route('/team/<team_name>/brawler/<brawler_name>')
 def team_brawler_page(team_name, brawler_name):
-    _, teams_data, _, _, _ = get_cached_data()
+    matches_df, teams_data, players_data, region_stats, mode_stats, all_brawlers = get_cached_data()
+
+    user_settings = load_json(USER_SETTINGS_FILE)
+    user_id = get_user_id()
+    user_prefs = user_settings.get(user_id, {})
+    view_mode = user_prefs.get('view_mode', 'season')
+
+    # Use the appropriate data
+    if view_mode == 'offseason':
+        data = players_data
+    else:
+        data = teams_data
     
     if team_name not in teams_data:
         return "Team not found", 404
@@ -2674,7 +3072,7 @@ def team_brawler_page(team_name, brawler_name):
             }
     
     return render_template('team_brawler.html',
-                         user=session['discord_tag'],
+                         user=session.get('discord_tag', 'Guest'),
                          team_name=team_name,
                          team=team,
                          brawler_name=brawler_name,

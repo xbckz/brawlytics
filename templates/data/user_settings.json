@@ -1,0 +1,22 @@
+{
+  "606751416261935123": {
+    "theme": "red",
+    "date_range": "30d",
+    "start_date": null,
+    "end_date": null,
+    "view_mode": "offseason"
+  },
+  "test_user": {
+    "theme": "orange",
+    "date_range": "30d",
+    "start_date": "2025-11-18",
+    "end_date": "2025-11-28"
+  },
+  "default_user": {
+    "theme": "red",
+    "date_range": "30d",
+    "start_date": null,
+    "end_date": null,
+    "view_mode": "offseason"
+  }
+}

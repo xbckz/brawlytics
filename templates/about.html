@@ -251,23 +251,135 @@
         font-size: 0.95rem;
     }
 
+    
     @media (max-width: 768px) {
-        .hero h1 {
-            font-size: 2.5rem;
-        }
-        
-        .mode-comparison {
-            grid-template-columns: 1fr;
-        }
-        
-        .content-section {
-            padding: 1.5rem;
-        }
-        
-        .cta-box {
-            padding: 2rem;
-        }
+    .hero h1 {
+        font-size: 2.5rem;
     }
+    
+    .hero::before {
+        width: 300px;
+        height: 300px;
+    }
+    
+    .hero p {
+        font-size: 1rem;
+        padding: 0 1rem;
+    }
+    
+    /* Features - 2 per row, then wrap */
+    .feature-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+    
+    .feature-card {
+        padding: 1.25rem;
+    }
+    
+    .feature-card h4 {
+        font-size: 1rem;
+    }
+    
+    .feature-card p {
+        font-size: 0.85rem;
+    }
+    
+    /* Mode comparison - side by side */
+    .mode-comparison {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+    
+    .mode-card {
+        padding: 1.25rem;
+    }
+    
+    .mode-card h4 {
+        font-size: 1.1rem;
+    }
+    
+    .mode-card p, .mode-card ul li {
+        font-size: 0.85rem;
+    }
+    
+    /* Content sections */
+    .content-section {
+        padding: 1.5rem;
+    }
+    
+    .content-section h2 {
+        font-size: 1.6rem;
+    }
+    
+    .content-section h3 {
+        font-size: 1.25rem;
+    }
+    
+    .content-section p {
+        font-size: 0.95rem;
+    }
+    
+    /* CTA box */
+    .cta-box {
+        padding: 2rem 1.5rem;
+    }
+    
+    .cta-box h3 {
+        font-size: 1.5rem;
+    }
+    
+    .cta-box p {
+        font-size: 1rem;
+    }
+    
+    .btn-discord {
+        padding: 0.875rem 2rem;
+        font-size: 1rem;
+    }
+}
+
+/* Extra small phones */
+@media (max-width: 480px) {
+    .hero h1 {
+        font-size: 2rem;
+    }
+    
+    .feature-card {
+        padding: 1rem;
+    }
+    
+    .feature-card h4 {
+        font-size: 0.9rem;
+    }
+    
+    .feature-card p {
+        font-size: 0.8rem;
+    }
+    
+    .mode-card {
+        padding: 1rem;
+    }
+    
+    .mode-card h4 {
+        font-size: 1rem;
+    }
+    
+    .mode-card p, .mode-card ul li {
+        font-size: 0.8rem;
+    }
+    
+    .content-section h2 {
+        font-size: 1.4rem;
+    }
+    
+    .btn-discord {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.95rem;
+    }
+}
+
+
 </style>
 {% endblock %}
 

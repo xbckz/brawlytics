@@ -1,0 +1,6 @@
+discord.py
+pandas
+openpyxl
+python-dotenv
+Pillow
+flask

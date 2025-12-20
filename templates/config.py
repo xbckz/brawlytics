@@ -1,0 +1,1 @@
+WEB_SERVER_URL = 'https://brawlytics.xyz'

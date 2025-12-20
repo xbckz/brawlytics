@@ -1,0 +1,526 @@
+{% extends "base.html" %}
+
+{% block title %}{{ team_name }} - {{ mode }} - {{ map_name }} - Brawlytics{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .mode-detail-header {
+        text-align: center;
+        margin-bottom: 2rem;
+        padding: 2rem 0;
+        position: relative;
+    }
+    
+    .mode-detail-header::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+        opacity: 0.1;
+        pointer-events: none;
+        z-index: -1;
+    }
+    
+    .mode-hero {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .mode-hero-icons {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+    
+    .mode-hero-image {
+        width: 120px;
+        height: 120px;
+        object-fit: contain;
+        filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));
+    }
+    
+    .map-hero-image {
+        width: 120px;
+        height: 120px;
+        border-radius: 12px;
+        object-fit: cover;
+        filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));
+    }
+    
+    .mode-separator {
+        font-size: 3rem;
+        color: var(--text-dim);
+    }
+    
+    .mode-hero-info h1 {
+        font-size: 3rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -2px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .mode-hero-info p {
+        color: var(--text-dim);
+        font-size: 1.15rem;
+    }
+    
+    .overview-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 3rem;
+    }
+    
+    .overview-stat-card {
+        background: var(--card);
+        padding: 1.75rem;
+        border-radius: 12px;
+        border-left: 4px solid var(--primary);
+    }
+    
+    .overview-stat-label {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .overview-stat-value {
+        font-size: 2.25rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+    
+    .stats-section {
+        background: var(--card);
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255,255,255,0.05);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    }
+    
+    .stats-header {
+        background: linear-gradient(135deg, var(--dark) 0%, var(--card) 100%);
+        padding: 1.5rem 2rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        border-bottom: 2px solid var(--primary);
+        position: relative;
+    }
+    
+    .stats-header::after {
+        content: "";
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: var(--primary);
+        box-shadow: 0 0 20px var(--primary);
+    }
+    
+    .brawlers-header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .stats-content {
+        padding: 2rem;
+        background: var(--dark);
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+    
+    .stat-item-link {
+        background: rgba(255,255,255,0.04);
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.06);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .stat-item-link:hover {
+        background: rgba(255,255,255,0.08);
+        border-color: var(--primary);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .brawler-rank {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: var(--primary);
+        min-width: 30px;
+        text-align: center;
+    }
+    
+    .stat-item-icon {
+        width: 50px;
+        height: 50px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255,255,255,0.05);
+        border-radius: 8px;
+    }
+    
+    .stat-item-icon img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        transition: transform 0.2s ease;
+    }
+    
+    .stat-item-link:hover .stat-item-icon img {
+        transform: scale(1.1);
+    }
+    
+    .stat-item-info {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .stat-item-name {
+        font-weight: 700;
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .stat-item-subtitle {
+        font-size: 0.75rem;
+        color: var(--text-dim);
+    }
+    
+    .stat-item-values {
+        text-align: right;
+        flex-shrink: 0;
+    }
+    
+    .stat-item-winrate {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-item-picks {
+        font-size: 0.75rem;
+        color: var(--text-dim);
+    }
+    
+    .sort-controls {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .sort-btn {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        color: var(--text-dim);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    
+    .sort-btn:hover {
+        background: rgba(255,255,255,0.1);
+        border-color: rgba(255,255,255,0.2);
+        color: var(--text);
+    }
+    
+    .sort-btn.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
+    }
+    
+    .sort-icon {
+        font-size: 0.8rem;
+        transition: transform 0.2s ease;
+    }
+    
+    .sort-btn.ascending .sort-icon {
+        transform: rotate(180deg);
+    }
+    
+    /* Color-coded win rates */
+    .wr-s { color: #22c55e; }
+    .wr-a { color: #84cc16; }
+    .wr-b { color: #eab308; }
+    .wr-c { color: #f97316; }
+    .wr-d { color: #ef4444; }
+    .wr-f { color: #991b1b; }
+    
+    .no-data {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-dim);
+        font-size: 1rem;
+    }
+    
+    @media (max-width: 768px) {
+        .mode-hero {
+            flex-direction: column;
+        }
+        
+        .mode-hero-info h1 {
+            font-size: 2rem;
+        }
+        
+        .overview-stats {
+            grid-template-columns: 1fr 1fr;
+        }
+        
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .brawlers-header-content {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-start !important;
+        }
+        
+        .sort-controls {
+            width: 100%;
+            justify-content: space-between;
+        }
+        
+        .sort-btn {
+            flex: 1;
+            justify-content: center;
+            font-size: 0.8rem;
+            padding: 0.4rem 0.6rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/dashboard">Home</a>
+    <span class="breadcrumb-separator">/</span>
+    <a href="/region/{{ team.region }}">{{ team.region }}</a>
+    <span class="breadcrumb-separator">/</span>
+    <a href="/team/{{ team_name }}">{{ team_name }}</a>
+    <span class="breadcrumb-separator">/</span>
+    <a href="/team/{{ team_name }}/mode/{{ mode }}">{{ mode }}</a>
+    <span class="breadcrumb-separator">/</span>
+    <span class="breadcrumb-current">{{ map_name }}</span>
+</div>
+
+<div class="mode-detail-header">
+    <div class="mode-hero">
+        <div class="mode-hero-icons">
+            {% set team_logo_filename = team_name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+            <img src="/static/images/teams/{{ team_logo_filename }}" 
+                 alt="{{ team_name }}" 
+                 class="mode-hero-image"
+                 onerror="this.style.display='none'">
+            
+            <span class="mode-separator">×</span>
+            
+            {% set map_img = map_name.lower().replace(' ', '_').replace('-', '_').replace("'", '') + '.png' %}
+            <img src="/static/images/maps/{{ map_img }}" 
+                 alt="{{ map_name }}" 
+                 class="map-hero-image"
+                 onerror="this.style.display='none'">
+        </div>
+    </div>
+    <div class="mode-hero-info">
+        <h1>{{ team_name }} on {{ map_name }}</h1>
+        <p>{{ mode }} performance on this map</p>
+    </div>
+</div>
+
+<div class="overview-stats">
+    <div class="overview-stat-card">
+        <div class="overview-stat-label">Matches</div>
+        <div class="overview-stat-value">{{ map_data.matches }}</div>
+    </div>
+    <div class="overview-stat-card">
+        <div class="overview-stat-label">Wins</div>
+        <div class="overview-stat-value">{{ map_data.wins }}</div>
+    </div>
+    <div class="overview-stat-card">
+        <div class="overview-stat-label">Losses</div>
+        <div class="overview-stat-value">{{ map_data.matches - map_data.wins }}</div>
+    </div>
+    <div class="overview-stat-card">
+        <div class="overview-stat-label">Win Rate</div>
+        {% set map_wr = (map_data.wins / map_data.matches * 100) if map_data.matches > 0 else 0 %}
+        {% if map_wr >= 65 %}
+        <div class="overview-stat-value wr-s">{{ "%.1f"|format(map_wr) }}%</div>
+        {% elif map_wr >= 57.5 %}
+        <div class="overview-stat-value wr-a">{{ "%.1f"|format(map_wr) }}%</div>
+        {% elif map_wr >= 50 %}
+        <div class="overview-stat-value wr-b">{{ "%.1f"|format(map_wr) }}%</div>
+        {% elif map_wr >= 42.5 %}
+        <div class="overview-stat-value wr-c">{{ "%.1f"|format(map_wr) }}%</div>
+        {% elif map_wr >= 35 %}
+        <div class="overview-stat-value wr-d">{{ "%.1f"|format(map_wr) }}%</div>
+        {% else %}
+        <div class="overview-stat-value wr-f">{{ "%.1f"|format(map_wr) }}%</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="stats-section">
+    <div class="stats-header">
+        <div class="brawlers-header-content">
+            <span>Brawler Performance</span>
+            <div class="sort-controls">
+                <button class="sort-btn active" onclick="sortBrawlers('picks')" data-sort="picks">
+                    <span class="sort-icon">↓</span> Picks
+                </button>
+                <button class="sort-btn" onclick="sortBrawlers('winrate')" data-sort="winrate">
+                    <span class="sort-icon">↓</span> Win Rate
+                </button>
+                <button class="sort-btn" onclick="sortBrawlers('best')" data-sort="best">
+                    <span class="sort-icon"></span>Best Pick
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="stats-content">
+        {% if map_data.brawlers %}
+        <div class="stats-grid" id="brawlers-container">
+            {% set sorted_brawlers = map_data.brawlers.items()|sort(attribute='1.picks', reverse=True) %}
+            {% for brawler, brawler_data in sorted_brawlers %}
+            {% set wr = (brawler_data.wins / brawler_data.picks * 100) if brawler_data.picks > 0 else 0 %}
+            {% set brawler_img = brawler.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+            
+            <a href="/team/{{ team_name }}/brawler/{{ brawler }}" class="stat-item-link"
+                 data-picks="{{ brawler_data.picks }}" 
+                 data-winrate="{{ wr }}">
+                <div class="brawler-rank">{{ loop.index }}</div>
+                <div class="stat-item-icon">
+                    <img src="/static/images/brawlers/{{ brawler_img }}" 
+                         alt="{{ brawler }}"
+                         onerror="this.style.display='none'">
+                </div>
+                <div class="stat-item-info">
+                    <div class="stat-item-name">{{ brawler }}</div>
+                    <div class="stat-item-subtitle">{{ brawler_data.picks }} picks</div>
+                </div>
+                <div class="stat-item-values">
+                    {% if wr >= 65 %}
+                    <div class="stat-item-winrate wr-s">{{ "%.1f"|format(wr) }}%</div>
+                    {% elif wr >= 57.5 %}
+                    <div class="stat-item-winrate wr-a">{{ "%.1f"|format(wr) }}%</div>
+                    {% elif wr >= 50 %}
+                    <div class="stat-item-winrate wr-b">{{ "%.1f"|format(wr) }}%</div>
+                    {% elif wr >= 42.5 %}
+                    <div class="stat-item-winrate wr-c">{{ "%.1f"|format(wr) }}%</div>
+                    {% elif wr >= 35 %}
+                    <div class="stat-item-winrate wr-d">{{ "%.1f"|format(wr) }}%</div>
+                    {% else %}
+                    <div class="stat-item-winrate wr-f">{{ "%.1f"|format(wr) }}%</div>
+                    {% endif %}
+                    <div class="stat-item-picks">Win Rate</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-data">No brawler data available for this map</div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+let currentSort = 'picks';
+let isAscending = false;
+
+function sortBrawlers(sortBy) {
+    const container = document.getElementById('brawlers-container');
+    const items = Array.from(container.querySelectorAll('.stat-item-link'));
+    
+    if (currentSort === sortBy && sortBy !== 'best') {
+        isAscending = !isAscending;
+    } else {
+        isAscending = false;
+        currentSort = sortBy;
+    }
+    
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.classList.remove('active', 'ascending');
+        if (btn.dataset.sort === sortBy) {
+            btn.classList.add('active');
+            if (isAscending && sortBy !== 'best') {
+                btn.classList.add('ascending');
+            }
+        }
+    });
+    
+    items.sort((a, b) => {
+        let aValue, bValue;
+        
+        if (sortBy === 'picks') {
+            aValue = parseFloat(a.dataset.picks);
+            bValue = parseFloat(b.dataset.picks);
+        } else if (sortBy === 'winrate') {
+            aValue = parseFloat(a.dataset.winrate);
+            bValue = parseFloat(b.dataset.winrate);
+        } else if (sortBy === 'best') {
+            const aPicks = parseFloat(a.dataset.picks);
+            const aWinrate = parseFloat(a.dataset.winrate);
+            const bPicks = parseFloat(b.dataset.picks);
+            const bWinrate = parseFloat(b.dataset.winrate);
+            
+            aValue = aPicks * aWinrate;
+            bValue = bPicks * bWinrate;
+        }
+        
+        if (sortBy === 'best') {
+            return bValue - aValue;
+        }
+        
+        return isAscending ? aValue - bValue : bValue - aValue;
+    });
+    
+    items.forEach((item, index) => {
+        const rank = item.querySelector('.brawler-rank');
+        rank.textContent = index + 1;
+    });
+    
+    items.forEach(item => container.appendChild(item));
+}
+</script>
+
+{% endblock %}

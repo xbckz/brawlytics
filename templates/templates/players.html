@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Players - Brawlytics{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .players-header {
+        text-align: center;
+        margin-bottom: 2rem;
+        padding: 2rem 0 1.5rem;
+        position: relative;
+    }
+    
+    .players-header::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+        opacity: 0.1;
+        pointer-events: none;
+        z-index: -1;
+    }
+    
+    .players-header h1 {
+        font-size: 3.5rem;
+        margin-bottom: 0.75rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -2px;
+    }
+    
+    .players-header p {
+        color: var(--text-dim);
+        font-size: 1.15rem;
+        font-weight: 400;
+    }
+    
+    .search-section {
+        background: var(--card);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255,255,255,0.05);
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    .search-box {
+        position: relative;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 1rem;
+        background: var(--dark);
+        border: 2px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        color: var(--text);
+        font-size: 1rem;
+        transition: all 0.2s;
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+    }
+    
+    .players-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .player-card {
+        background: var(--card);
+        border-radius: 10px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 1px solid rgba(255,255,255,0.05);
+        text-decoration: none;
+        display: block;
+    }
+
+    .player-card:hover {
+        border-color: var(--primary);
+       
+        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+
+    .player-brawler-image {
+        width: 70px;
+        height: 70px;
+        object-fit: contain;
+        margin: 0 auto 1rem;
+        filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+        transition: transform 0.3s ease;
+    }
+
+    
+
+    .player-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+    }
+
+    .player-tag {
+        font-size: 0.8rem;
+        color: var(--text-dim);
+        font-family: inherit;
+        margin-bottom: 1rem;
+    }
+
+    .player-region {
+        display: inline-block;
+        background: var(--primary);
+        color: white;
+        padding: 0.3rem 0.7rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 1rem;
+    }
+
+    .player-quick-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    .quick-stat {
+        background: var(--dark);
+        padding: 0.5rem;
+        border-radius: 6px;
+    }
+
+    .quick-stat-label {
+        font-size: 0.65rem;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.2rem;
+    }
+
+    .quick-stat-value {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .most-played {
+        font-size: 0.75rem;
+        color: var(--text-dim);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Color-coded win rates */
+    .wr-s { color: #22c55e; }
+    .wr-a { color: #84cc16; }
+    .wr-b { color: #eab308; }
+    .wr-c { color: #f97316; }
+    .wr-d { color: #ef4444; }
+    .wr-f { color: #991b1b; }
+    
+    .no-results {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-dim);
+        font-size: 1.1rem;
+        grid-column: 1 / -1;
+    }
+    
+    @media (max-width: 768px) {
+        .players-header h1 {
+            font-size: 2.5rem;
+        }
+        
+        .players-grid {
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="players-header">
+    <h1>Players</h1>
+    <p>Complete statistics for all competitive players</p>
+</div>
+
+<div class="search-section">
+    <div class="search-box">
+        <input type="text" 
+               class="search-input" 
+               id="player-search" 
+               placeholder="Search players..."
+               onkeyup="filterPlayers()">
+    </div>
+</div>
+
+<div class="players-grid" id="players-grid">
+    {% for player in players %}
+    {% set brawler_img = player.most_played_brawler.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+    {% set win_rate = player.win_rate %}
+    
+    <a href="/player/{{ player.tag|urlencode }}" class="player-card" data-name="{{ player.name.lower() }}" data-tag="{{ player.tag.lower() }}">
+        <div class="most-played">Most Played</div>
+        <img src="/static/images/brawlers/{{ brawler_img }}" 
+             alt="{{ player.most_played_brawler }}" 
+             class="player-brawler-image"
+             onerror="this.style.display='none'">
+        <div class="player-name">{{ player.name }}</div>
+        <div class="player-tag">{{ player.tag }}</div>
+        <div class="player-region">{{ player.region }}</div>
+        <div class="player-quick-stats">
+            <div class="quick-stat">
+                <div class="quick-stat-label">Games</div>
+                <div class="quick-stat-value">{{ player.games }}</div>
+            </div>
+            <div class="quick-stat">
+                <div class="quick-stat-label">Wins</div>
+                <div class="quick-stat-value">{{ player.wins }}</div>
+            </div>
+            <div class="quick-stat" style="grid-column: 1 / -1;">
+                <div class="quick-stat-label">Win Rate</div>
+                {% if win_rate >= 65 %}
+                <div class="quick-stat-value wr-s">{{ "%.1f"|format(win_rate) }}%</div>
+                {% elif win_rate >= 57.5 %}
+                <div class="quick-stat-value wr-a">{{ "%.1f"|format(win_rate) }}%</div>
+                {% elif win_rate >= 50 %}
+                <div class="quick-stat-value wr-b">{{ "%.1f"|format(win_rate) }}%</div>
+                {% elif win_rate >= 42.5 %}
+                <div class="quick-stat-value wr-c">{{ "%.1f"|format(win_rate) }}%</div>
+                {% elif win_rate >= 35 %}
+                <div class="quick-stat-value wr-d">{{ "%.1f"|format(win_rate) }}%</div>
+                {% else %}
+                <div class="quick-stat-value wr-f">{{ "%.1f"|format(win_rate) }}%</div>
+                {% endif %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+<script>
+function filterPlayers() {
+    const searchInput = document.getElementById('player-search').value.toLowerCase();
+    const cards = document.querySelectorAll('.player-card');
+    let visibleCount = 0;
+    
+    cards.forEach(card => {
+        const playerName = card.dataset.name;
+        const playerTag = card.dataset.tag;
+        if (playerName.includes(searchInput) || playerTag.includes(searchInput)) {
+            card.style.display = 'block';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    // Show "no results" message if needed
+    const grid = document.getElementById('players-grid');
+    let noResults = document.getElementById('no-results');
+    
+    if (visibleCount === 0 && !noResults) {
+        noResults = document.createElement('div');
+        noResults.id = 'no-results';
+        noResults.className = 'no-results';
+        noResults.textContent = 'No players found matching your search';
+        grid.appendChild(noResults);
+    } else if (visibleCount > 0 && noResults) {
+        noResults.remove();
+    }
+}
+</script>
+{% endblock %}

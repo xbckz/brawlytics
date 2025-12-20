@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}Possible Teams - Brawlytics{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .teams-header {
+        text-align: center;
+        margin-bottom: 2rem;
+        padding: 2rem 0 1.5rem;
+        position: relative;
+    }
+    
+    .teams-header::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+        opacity: 0.1;
+        pointer-events: none;
+        z-index: -1;
+    }
+    
+    .teams-header h1 {
+        font-size: 3.5rem;
+        margin-bottom: 0.75rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -2px;
+    }
+    
+    .teams-header p {
+        color: var(--text-dim);
+        font-size: 1.15rem;
+        font-weight: 400;
+    }
+
+    /* Filters Section Styles (Adapted from meta.html) */
+    .filters-section {
+        background: var(--card);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255,255,255,0.05);
+        max-width: 900px; /* Adjusted max-width for better centering */
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    .filter-group {
+        margin-bottom: 1.5rem;
+        display: block;
+    }
+    
+    .filter-group:last-child {
+        margin-bottom: 0;
+    }
+    
+    .filter-label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: var(--text);
+        font-size: 1.1rem;
+    }
+    
+    .filter-buttons {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    
+    .filter-btn {
+        padding: 0.75rem 1.25rem;
+        border: 2px solid rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.05);
+        color: var(--text-dim);
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.95rem;
+        white-space: nowrap;
+        text-transform: capitalize;
+        letter-spacing: normal;
+    }
+    
+    .filter-btn:hover {
+        background: rgba(255,255,255,0.1);
+        border-color: rgba(255,255,255,0.2);
+        color: var(--text);
+    }
+    
+    .filter-btn.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
+    }
+    /* End Filters Section Styles */
+
+    .trio-grid {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .trio-card {
+        background: var(--card);
+        border-radius: 16px;
+        padding: 2rem;
+        border: 1px solid rgba(255,255,255,0.05);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .trio-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(90deg, var(--primary) 0%, transparent 100%);
+    }
+
+    
+
+    .trio-rank {
+        position: absolute;
+        top: 1.5rem;
+        right: 1.5rem;
+        background: var(--dark);
+        color: var(--text-dim);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .trio-rank.gold {
+        background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+        color: #000;
+        border: none;
+    }
+
+    .trio-rank.silver {
+        background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
+        color: #000;
+        border: none;
+    }
+
+    .trio-rank.bronze {
+        background: linear-gradient(135deg, #cd7f32 0%, #d4a574 100%);
+        color: #000;
+        border: none;
+    }
+
+    .trio-header {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .trio-region {
+        background: var(--primary);
+        color: white;
+        padding: 0.4rem 0.9rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .trio-players {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .player-box {
+        background: var(--dark);
+        padding: 1.25rem;
+        border-radius: 12px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .player-box:hover {
+        background: var(--card);
+        border-color: var(--primary);
+        transform: translateY(-2px);
+    }
+
+    .player-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+    }
+
+    .player-tag {
+        font-size: 0.8rem;
+        color: var(--text-dim);
+        font-family: inherit;
+    }
+
+    .trio-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .trio-stat {
+        text-align: center;
+    }
+
+    .stat-label-small {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.4rem;
+    }
+
+    .stat-value-small {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .stat-value-small.wr-high {
+        color: #22c55e;
+    }
+
+    .stat-value-small.wr-mid {
+        color: #eab308;
+    }
+
+    .stat-value-small.wr-low {
+        color: #ef4444;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-dim);
+    }
+
+    .empty-state-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .empty-state-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+    }
+
+    @media (max-width: 768px) {
+        .teams-header h1 {
+            font-size: 2.5rem;
+        }
+
+        .trio-players {
+            grid-template-columns: 1fr;
+        }
+
+        .trio-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .filters-section {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .filter-group {
+            flex-wrap: wrap;
+        }
+    }
+    
+    /* Hide the original filter-bar which is now replaced by filters-section */
+    .filter-bar { display: none; } 
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="teams-header">
+    <h1>Possible Teams</h1>
+    <p>Teams based on games played together and win rate</p>
+</div>
+
+<div class="filters-section">
+
+
+    <div class="filter-group">
+        <label class="filter-label">Region</label>
+        <div class="filter-buttons">
+            <button class="filter-btn {% if current_region == 'ALL' %}active{% endif %}" 
+                    onclick="selectRegion('ALL')" data-region="ALL">
+                All Regions
+            </button>
+            <button class="filter-btn {% if current_region == 'NA' %}active{% endif %}" 
+                    onclick="selectRegion('NA')" data-region="NA">
+                NA
+            </button>
+            <button class="filter-btn {% if current_region == 'EU' %}active{% endif %}" 
+                    onclick="selectRegion('EU')" data-region="EU">
+                EU
+            </button>
+            <button class="filter-btn {% if current_region == 'LATAM' %}active{% endif %}" 
+                    onclick="selectRegion('LATAM')" data-region="LATAM">
+                LATAM
+            </button>
+            <button class="filter-btn {% if current_region == 'EA' %}active{% endif %}" 
+                    onclick="selectRegion('EA')" data-region="EA">
+                East Asia
+            </button>
+            <button class="filter-btn {% if current_region == 'SEA' %}active{% endif %}" 
+                    onclick="selectRegion('SEA')" data-region="SEA">
+                Southeast Asia
+            </button>
+        </div>
+    </div>
+
+
+
+    <div class="filter-group">
+        <label class="filter-label">Sort By</label>
+        <div class="filter-buttons">
+            <button class="filter-btn {% if sort_by == 'games' %}active{% endif %}" 
+                    onclick="selectSort('games')" data-sort="games">
+                Games Together
+            </button>
+            <button class="filter-btn {% if sort_by == 'winrate' %}active{% endif %}" 
+                    onclick="selectSort('winrate')" data-sort="winrate">
+                Win Rate
+            </button>
+            
+            
+        </div>
+    </div>
+</div>
+
+{% if trios %}
+<div class="trio-grid">
+    {% for trio in trios %}
+    <div class="trio-card">
+        <div class="trio-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">
+            #{{ loop.index }}
+        </div>
+        
+        <div class="trio-header">
+            <span class="trio-region">{{ trio.region }}</span>
+        </div>
+        
+        <div class="trio-players">
+            {% for i in range(trio.players|length) %}
+            <div class="player-box" onclick="location.href='/player/{{ trio.tags[i]|urlencode }}'">
+                <div class="player-name">{{ trio.players[i] }}</div>
+                <div class="player-tag">{{ trio.tags[i] }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="trio-stats">
+            <div class="trio-stat">
+                <div class="stat-label-small">Games Together</div>
+                <div class="stat-value-small">{{ trio.games_together }}</div>
+            </div>
+            <div class="trio-stat">
+                <div class="stat-label-small">Record</div>
+                <div class="stat-value-small">{{ trio.trio_wins }}-{{ trio.games_together - trio.trio_wins }}</div>
+            </div>
+            <div class="trio-stat">
+                <div class="stat-label-small">Win Rate</div>
+                {% set wr_class = 'wr-high' if trio.trio_winrate >= 55 else ('wr-mid' if trio.trio_winrate >= 45 else 'wr-low') %}
+                <div class="stat-value-small {{ wr_class }}">
+                    {{ "%.1f"|format(trio.trio_winrate) }}%
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">🔍</div>
+    <div class="empty-state-title">No Trios Found</div>
+    <p>No players have played together enough to form trios (minimum 3 games required)</p>
+</div>
+{% endif %}
+
+<script>
+let currentSort = '{{ sort_by }}';
+let currentRegion = '{{ current_region }}';
+
+function updateTeamsStats() {
+    // Reload the page with the new filters
+    window.location.href = `/possible-teams?sort=${currentSort}&region=${currentRegion}`;
+}
+
+function selectSort(sortBy) {
+    currentSort = sortBy;
+    
+    // Update active button classes visually
+    document.querySelectorAll('[data-sort]').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.sort === sortBy) {
+            btn.classList.add('active');
+        }
+    });
+    
+    updateTeamsStats();
+}
+
+function selectRegion(region) {
+    currentRegion = region;
+    
+    // Update active button classes visually
+    document.querySelectorAll('[data-region]').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.region === region) {
+            btn.classList.add('active');
+        }
+    });
+    
+    updateTeamsStats();
+}
+</script>
+{% endblock %}

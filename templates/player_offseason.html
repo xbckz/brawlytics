@@ -263,17 +263,153 @@
     .wr-d { color: #ef4444; }
     .wr-f { color: #991b1b; }
     
+    
     @media (max-width: 768px) {
+        .mode-detail-header {
+            padding: 1.5rem 0;
+        }
+        
+        .mode-detail-header::before {
+            width: 300px;
+            height: 300px;
+        }
+        
         .player-hero h1 {
             font-size: 2rem;
         }
         
+        .player-tag {
+            font-size: 0.9rem;
+            padding: 0.4rem 0.8rem;
+        }
+        
+        .player-region-badge {
+            font-size: 0.85rem;
+            padding: 0.4rem 1rem;
+        }
+        
         .overview-stats {
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        
+        .overview-stat-card {
+            padding: 1.25rem 1rem;
+        }
+        
+        .overview-stat-label {
+            font-size: 0.75rem;
+        }
+        
+        .overview-stat-value {
+            font-size: 1.75rem;
+        }
+        
+        .stats-header {
+            padding: 1.25rem 1rem;
+            font-size: 1.3rem;
+        }
+        
+        .stats-content {
+            padding: 1rem;
         }
         
         .stats-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+        
+        .stat-item-link {
+            padding: 0.875rem 0.5rem;
+            flex-direction: column;
+            text-align: center;
+        }
+        
+        .brawler-rank {
+            font-size: 1rem;
+            min-width: auto;
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            background: var(--dark);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .stat-item-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto;
+        }
+        
+        .stat-item-icon img {
+            width: 50px;
+            height: 50px;
+        }
+        
+        .stat-item-info {
+            width: 100%;
+            text-align: center;
+        }
+        
+        .stat-item-name {
+            font-size: 0.9rem;
+            white-space: normal;
+        }
+        
+        .stat-item-subtitle {
+            font-size: 0.7rem;
+        }
+        
+        .stat-item-values {
+            text-align: center;
+            width: 100%;
+        }
+        
+        .stat-item-winrate {
+            font-size: 1.1rem;
+        }
+        
+        .stat-item-picks {
+            font-size: 0.7rem;
+        }
+    }
+    
+    /* Extra small phones */
+    @media (max-width: 480px) {
+        .player-hero h1 {
+            font-size: 1.75rem;
+        }
+        
+        .overview-stat-value {
+            font-size: 1.5rem;
+        }
+        
+        .stat-item-link {
+            padding: 0.75rem 0.4rem;
+        }
+        
+        .stat-item-icon {
+            width: 55px;
+            height: 55px;
+        }
+        
+        .stat-item-icon img {
+            width: 45px;
+            height: 45px;
+        }
+        
+        .stat-item-name {
+            font-size: 0.85rem;
+        }
+        
+        .stat-item-winrate {
+            font-size: 1rem;
+        }
+        
+        .brawler-rank {
+            font-size: 0.9rem;
+            padding: 0.2rem 0.4rem;
         }
     }
 </style>

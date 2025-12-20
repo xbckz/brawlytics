@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Brawlytics{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .settings-header {
+        text-align: center;
+        margin-bottom: 2rem;
+        padding: 2rem 0 1.5rem;
+        position: relative;
+    }
+    
+    .settings-header::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+        opacity: 0.1;
+        pointer-events: none;
+        z-index: -1;
+    }
+    
+    .settings-header h1 {
+        font-size: 3.5rem;
+        margin-bottom: 0.75rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -2px;
+    }
+    
+    .settings-header p {
+        color: var(--text-dim);
+        font-size: 1.15rem;
+        font-weight: 400;
+    }
+    
+    .settings-section {
+        background: var(--card);
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255,255,255,0.05);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    }
+    
+    .section-header {
+        background: linear-gradient(135deg, var(--dark) 0%, var(--card) 100%);
+        padding: 1.5rem 2rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        border-bottom: 2px solid var(--primary);
+        position: relative;
+    }
+    
+    .section-header::after {
+        content: "";
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: var(--primary);
+        box-shadow: 0 0 20px var(--primary);
+    }
+    
+    .section-content {
+        padding: 2rem;
+        background: var(--dark);
+    }
+    
+    .theme-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .theme-option {
+        position: relative;
+        cursor: pointer;
+    }
+    
+    .theme-option input[type="radio"] {
+        display: none;
+    }
+    
+    .theme-card {
+        background: rgba(255,255,255,0.05);
+        padding: 1.5rem;
+        border-radius: 12px;
+        text-align: center;
+        transition: all 0.3s ease;
+        border: 2px solid rgba(255,255,255,0.08);
+        position: relative;
+    }
+    
+    .theme-option input[type="radio"]:checked + .theme-card {
+        border-color: var(--primary);
+        background: rgba(255,255,255,0.08);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    
+    .theme-card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(255,255,255,0.2);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    
+    .theme-preview {
+        width: 100%;
+        height: 60px;
+        border-radius: 8px;
+        margin: 0 auto 1rem;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        transition: transform 0.3s ease;
+        display: flex;
+    }
+    
+    .theme-preview-color {
+        flex: 1;
+        height: 100%;
+    }
+    
+    .theme-preview-color:first-child {
+        border-radius: 8px 0 0 8px;
+    }
+    
+    .theme-preview-color:last-child {
+        border-radius: 0 8px 8px 0;
+    }
+    
+    .theme-option input[type="radio"]:checked + .theme-card .theme-preview,
+    .theme-card:hover .theme-preview {
+        transform: scale(1.05);
+    }
+    
+    .theme-name {
+        font-weight: 700;
+        text-transform: capitalize;
+        color: var(--text);
+        font-size: 1rem;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Date Filter Styles */
+    .date-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .date-option {
+        position: relative;
+        cursor: pointer;
+    }
+    
+    .date-option input[type="radio"] {
+        display: none;
+    }
+    
+    .date-card {
+        background: rgba(255,255,255,0.05);
+        padding: 1.25rem;
+        border-radius: 12px;
+        text-align: center;
+        transition: all 0.3s ease;
+        border: 2px solid rgba(255,255,255,0.08);
+    }
+    
+    .date-option input[type="radio"]:checked + .date-card {
+        border-color: var(--primary);
+        background: rgba(255,255,255,0.08);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    
+    .date-card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(255,255,255,0.2);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    
+    .date-label {
+        font-weight: 700;
+        color: var(--text);
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .date-description {
+        color: var(--text-dim);
+        font-size: 0.85rem;
+        line-height: 1.4;
+    }
+    
+    .custom-date-inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-top: 1rem;
+        padding: 1.5rem;
+        background: rgba(255,255,255,0.05);
+        border-radius: 12px;
+        border: 2px solid rgba(255,255,255,0.08);
+    }
+    
+    .custom-date-inputs.hidden {
+        display: none;
+    }
+    
+    .date-input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .date-input-label {
+        font-weight: 600;
+        color: var(--text);
+        font-size: 0.9rem;
+    }
+    
+    .date-input {
+        padding: 0.75rem;
+        background: var(--card);
+        border: 2px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        color: var(--text);
+        font-size: 0.95rem;
+        transition: all 0.2s;
+    }
+    
+    .date-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+    }
+    
+    .save-button {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.05rem;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .save-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    
+    @media (max-width: 768px) {
+        .settings-header h1 {
+            font-size: 2.5rem;
+        }
+        
+        .settings-header::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .theme-grid {
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        }
+        
+        .date-filter-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .custom-date-inputs {
+            grid-template-columns: 1fr;
+        }
+        
+        .section-content {
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-header">
+    <h1>Settings</h1>
+    <p>Manage theme, mode, and data range.</p>
+</div>
+
+<form method="POST">
+    <div class="settings-section">
+    <div class="section-header">Appearance</div>
+    <div class="section-content">
+        <div class="theme-grid">
+            <label class="theme-option">
+                <input type="radio" name="theme" value="red">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#ef4444"></div>
+                        <div class="theme-preview-color" style="background:#111"></div>
+                    </div>
+                    <div class="theme-name">Red</div>
+                </div>
+            </label>
+
+            <label class="theme-option">
+                <input type="radio" name="theme" value="brawl">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#e94560"></div>
+                        <div class="theme-preview-color" style="background:#16213e"></div>
+                    </div>
+                    <div class="theme-name">Brawl</div>
+                </div>
+            </label>
+
+            <label class="theme-option">
+                <input type="radio" name="theme" value="purple">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#8b5cf6"></div>
+                        <div class="theme-preview-color" style="background:#2d2438"></div>
+                    </div>
+                    <div class="theme-name">Purple</div>
+                </div>
+            </label>
+
+            <label class="theme-option">
+                <input type="radio" name="theme" value="blue">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#3b82f6"></div>
+                        <div class="theme-preview-color" style="background:#1e293b"></div>
+                    </div>
+                    <div class="theme-name">Blue</div>
+                </div>
+            </label>
+
+            <label class="theme-option">
+                <input type="radio" name="theme" value="orange">
+                <div class="theme-card">
+                    <div class="theme-preview">
+                        <div class="theme-preview-color" style="background:#f97316"></div>
+                        <div class="theme-preview-color" style="background:#292524"></div>
+                    </div>
+                    <div class="theme-name">Orange</div>
+                </div>
+            </label>
+
+            <!-- add blue / green / orange same way -->
+        </div>
+    </div>
+</div>
+
+    
+
+
+    <div class="settings-section">
+        <div class="section-header">Mode</div>
+        <div class="section-content">
+            <div class="date-filter-grid">
+                <label class="date-option">
+                    <input type="radio" name="view_mode" value="season" {% if current_view_mode == 'season' %}checked{% endif %}>
+                    <div class="date-card">
+                        <div class="date-label">Season Mode</div>
+                        <div class="date-description">Team based statistics and rosters</div>
+                    </div>
+                </label>
+                
+                <label class="date-option">
+                    <input type="radio" name="view_mode" value="offseason" {% if current_view_mode == 'offseason' %}checked{% endif %}>
+                    <div class="date-card">
+                        <div class="date-label">Off Season Mode</div>
+                        <div class="date-description">Individual player tracking</div>
+                    </div>
+                </label>
+            </div>
+            
+            
+        </div>
+    </div>
+
+
+
+    <div class="settings-section">
+        <div class="section-header">Data Filters</div>
+        <div class="section-content">
+            <div class="date-filter-grid">
+                <label class="date-option">
+                    <input type="radio" name="date_range" value="all" {% if current_date_range == 'all' %}checked{% endif %} onchange="toggleCustomDates(false)">
+                    <div class="date-card">
+                        <div class="date-label">All Time</div>
+                        <div class="date-description">Show all available data</div>
+                    </div>
+                </label>
+                
+                <label class="date-option">
+                    <input type="radio" name="date_range" value="30d" {% if current_date_range == '30d' %}checked{% endif %} onchange="toggleCustomDates(false)">
+                    <div class="date-card">
+                        <div class="date-label">Last 30 Days</div>
+                        <div class="date-description">Show only last 30 days</div>
+                    </div>
+                </label>
+                
+                
+                <label class="date-option">
+                    <input type="radio" name="date_range" value="custom" {% if current_date_range == 'custom' %}checked{% endif %} onchange="toggleCustomDates(true)">
+                    <div class="date-card">
+                        <div class="date-label">Custom Range</div>
+                        <div class="date-description">Choose specific dates</div>
+                    </div>
+                </label>
+            </div>
+            
+            <div id="custom-date-inputs" class="custom-date-inputs {% if current_date_range != 'custom' %}hidden{% endif %}">
+                <div class="date-input-group">
+                    <label class="date-input-label">Start Date</label>
+                    <input type="date" name="start_date" class="date-input" value="{{ start_date }}">
+                </div>
+                <div class="date-input-group">
+                    <label class="date-input-label">End Date</label>
+                    <input type="date" name="end_date" class="date-input" value="{{ end_date }}">
+                </div>
+            </div>
+            
+            <button type="submit" class="save-button">Save Changes</button>
+        </div>
+    </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.theme-option input').forEach(input => {
+        input.addEventListener('change', () => {
+            localStorage.setItem('userTheme', input.value);
+            applyTheme(input.value); // function from base.html
+        });
+    });
+});
+
+
+function toggleCustomDates(show) {
+    const el = document.getElementById('custom-date-inputs');
+    if (!el) return;
+
+    if (show) {
+        el.classList.remove('hidden');
+    } else {
+        el.classList.add('hidden');
+    }
+}
+
+</script>
+
+
+{% endblock %}

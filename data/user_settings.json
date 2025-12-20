@@ -11,5 +11,47 @@
     "date_range": "30d",
     "start_date": "2025-11-18",
     "end_date": "2025-11-28"
+  },
+  "e522ca0d-5b43-484b-8a40-bdc6c2444291": {
+    "theme": "orange",
+    "date_range": "30d",
+    "start_date": null,
+    "end_date": null,
+    "view_mode": "season"
+  },
+  "30df1002-6280-4966-90c3-22cf74cea03c": {
+    "theme": "red",
+    "date_range": "30d",
+    "start_date": null,
+    "end_date": null,
+    "view_mode": "season"
+  },
+  "47e881ff-b245-46a6-883a-596f48cf6d57": {
+    "theme": "red",
+    "date_range": "30d",
+    "start_date": null,
+    "end_date": null,
+    "view_mode": "season"
+  },
+  "32d28dbc-64ea-4c5f-91fe-4a303f945c73": {
+    "theme": "red",
+    "date_range": "30d",
+    "start_date": null,
+    "end_date": null,
+    "view_mode": "offseason"
+  },
+  "d3966195-6c5f-402f-82bb-d9cc86a40167": {
+    "theme": "red",
+    "date_range": "30d",
+    "start_date": null,
+    "end_date": null,
+    "view_mode": "season"
+  },
+  "a8876978-c638-4cf5-88ff-98d8613882f7": {
+    "theme": "red",
+    "date_range": "30d",
+    "start_date": null,
+    "end_date": null,
+    "view_mode": "offseason"
   }
 }

@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Off Season{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .hero {
+        text-align: center;
+        margin-bottom: 2rem;      
+        padding: 2rem 0 1.5rem;   
+        position: relative;
+    }
+    
+    .hero::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+        opacity: 0.1;
+        pointer-events: none;
+        z-index: -1;
+    }
+    
+    .hero h1 {
+        font-size: 3.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -2px;
+    }
+
+    .hero .mode {
+        color: var(--text-dim);
+        font-size: 1rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .hero p {
+        color: var(--text-dim);
+        font-size: 1.15rem;
+        font-weight: 400;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: var(--card);
+        padding: 2rem;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.05);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: var(--primary);
+    }
+
+    .stat-label {
+        color: var(--text-dim);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1;
+    }
+
+    .section-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        color: var(--text);
+        position: relative;
+        padding-left: 1rem;
+    }
+    
+    .section-title::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 4px;
+        height: 70%;
+        background: var(--primary);
+        border-radius: 2px;
+    }
+
+    .leaderboard-section {
+        background: var(--card);
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 3.5rem;
+        border: 1px solid rgba(255,255,255,0.05);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    }
+    
+    .leaderboard-header {
+        background: linear-gradient(135deg, var(--dark) 0%, var(--card) 100%);
+        padding: 1.75rem 2rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        border-bottom: 2px solid var(--primary);
+        position: relative;
+    }
+    
+    .leaderboard-header::after {
+        content: "";
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: var(--primary);
+        box-shadow: 0 0 20px var(--primary);
+    }
+
+    .leaderboard-item {
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid rgba(255,255,255,0.03);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        position: relative;
+    }
+    
+    .leaderboard-item::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 3px;
+        height: 100%;
+        background: var(--primary);
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    
+    .leaderboard-item:hover {
+        background: var(--dark);
+        padding-left: 2.5rem;
+    }
+    
+    .leaderboard-item:hover::before {
+        opacity: 1;
+    }
+    
+    .leaderboard-item:last-child {
+        border-bottom: none;
+    }
+
+    .player-left {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+    }
+    
+    .player-rank {
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: var(--primary);
+        min-width: 35px;
+        text-align: center;
+    }
+
+    .player-name {
+        font-weight: 700;
+        font-size: 1.1rem;
+        letter-spacing: -0.3px;
+        color: var(--text);
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+
+    .player-name:hover {
+        color: var(--primary);
+    }
+
+    .player-region-badge {
+        color: var(--text-dim);
+        font-size: 0.8rem;
+        background: var(--dark);
+        padding: 0.3rem 0.7rem;
+        border-radius: 6px;
+        margin-top: 0.25rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .player-record {
+        font-weight: 700;
+        color: var(--text);
+        font-size: 1.1rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .wr-s {
+        color: #22c55e;
+    }
+    
+    .wr-a {
+        color: #84cc16;
+    }
+    
+    .wr-b {
+        color: #eab308;
+    }
+    
+    .wr-c {
+        color: #f97316;
+    }
+    
+    .wr-d {
+        color: #ef4444;
+    }
+    
+    .wr-f {
+        color: #991b1b;
+    }
+
+    .region-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 3.5rem;
+    }
+    
+    .region-card {
+        background: var(--card);
+        padding: 2rem;
+        border-radius: 16px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(255,255,255,0.05);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .region-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, var(--primary) 0%, transparent 50%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    
+    .region-card:hover {
+        border-color: var(--primary);
+        
+        box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+    }
+    
+    .region-card:hover::before {
+        opacity: 0.08;
+    }
+
+    
+
+    .flag-icon {
+        width: 40px;
+        height: 28px;
+        object-fit: cover;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        display: block;
+        
+        position: relative;
+        z-index: 1;
+    }
+
+    .flag-icon-globe {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        display: block;
+        
+        position: relative;
+        z-index: 1;
+    }
+
+    .region-card h3 {
+        font-size: 1.35rem;
+        margin-bottom: 0.5rem;
+        font-weight: 700;
+        position: relative;
+        z-index: 1;
+        letter-spacing: -0.5px;
+    }
+    
+    .region-card p {
+        color: var(--text-dim);
+        font-size: 0.9rem;
+        line-height: 1.6;
+        position: relative;
+        z-index: 1;
+    }
+
+    @media (max-width: 1024px) {
+        .region-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .hero h1 {
+            font-size: 2.5rem;
+        }
+        
+        .hero::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .region-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .stat-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>Brawlytics</h1>
+    <div class="mode">OffSeason Mode</div>
+    <p>Individual player tracking and statistics</p>
+</div>
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Matches</div>
+        <div class="stat-value">{{ total_matches }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Tracked Players</div>
+        <div class="stat-value">{{ total_players }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Unique Brawlers</div>
+        <div class="stat-value">{{ total_brawlers }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Active Regions</div>
+        <div class="stat-value">5</div>
+    </div>
+</div>
+
+<h2 class="section-title">Select a Region</h2>
+
+<div class="region-grid">
+    <div class="region-card" onclick="location.href='/region/all'">
+        <img src="/static/images/flags/all.png" class="flag-icon-globe" alt="All Regions">
+        <h3>ALL REGIONS</h3>
+        <p>View statistics across all regions</p>
+    </div>
+    
+    <div class="region-card" onclick="location.href='/region/na'">
+        <img src="/static/images/flags/us.png" class="flag-icon" alt="North America">
+        <h3>NORTH AMERICA</h3>
+        <p>NA region players and statistics</p>
+    </div>
+    
+    <div class="region-card" onclick="location.href='/region/eu'">
+        <img src="/static/images/flags/eu.png" class="flag-icon" alt="Europe">
+        <h3>EUROPE</h3>
+        <p>EU region players and statistics</p>
+    </div>
+    
+    <div class="region-card" onclick="location.href='/region/latam'">
+        <img src="/static/images/flags/br.png" class="flag-icon" alt="LATAM">
+        <h3>LATAM</h3>
+        <p>LATAM region players and statistics</p>
+    </div>
+    
+    <div class="region-card" onclick="location.href='/region/ea'">
+        <img src="/static/images/flags/ea.png" class="flag-icon" alt="East Asia">
+        <h3>EAST ASIA</h3>
+        <p>EA region players and statistics</p>
+    </div>
+    
+    <div class="region-card" onclick="location.href='/region/sea'">
+        <img src="/static/images/flags/all.png" class="flag-icon-globe" alt="Southeast Asia">
+        <h3>SOUTHEAST ASIA</h3>
+        <p>SEA region players and statistics</p>
+    </div>
+</div>
+
+<h2 class="section-title">Top Players</h2>
+
+<div class="leaderboard-section">
+    <div class="leaderboard-header">
+        Ranked by Win Rate
+    </div>
+    {% if top_players %}
+        {% for player_tag, player in top_players %}
+        {% set win_rate = (player.wins / player.matches * 100) if player.matches > 0 else 0 %}
+        <div class="leaderboard-item" onclick="location.href='/player/{{ player_tag|urlencode }}'">
+            <div class="player-left">
+                <div class="player-rank">{{ loop.index }}</div>
+                <div>
+                    <div class="player-name">{{ player.name }}</div>
+                    <span class="player-region-badge">{{ player.region }}</span>
+                </div>
+            </div>
+            <div class="player-record">
+                {{ player.wins }}-{{ player.losses }} · 
+                {% if win_rate >= 65 %}
+                <span class="wr-s">{{ "%.1f"|format(win_rate) }}%</span>
+                {% elif win_rate >= 57.5 %}
+                <span class="wr-a">{{ "%.1f"|format(win_rate) }}%</span>
+                {% elif win_rate >= 50 %}
+                <span class="wr-b">{{ "%.1f"|format(win_rate) }}%</span>
+                {% elif win_rate >= 42.5 %}
+                <span class="wr-c">{{ "%.1f"|format(win_rate) }}%</span>
+                {% elif win_rate >= 35 %}
+                <span class="wr-d">{{ "%.1f"|format(win_rate) }}%</span>
+                {% else %}
+                <span class="wr-f">{{ "%.1f"|format(win_rate) }}%</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div style="padding: 2rem; text-align: center; color: var(--text-dim);">
+            No player data available
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

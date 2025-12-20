@@ -1,0 +1,35 @@
+{
+  "1441178494242390020": {
+    "schedule_channel_id": 1441937937393778729,
+    "reminder_channel_id": 1441178495580508303,
+    "events": [
+      {
+        "day": "Monday",
+        "time": "20:00",
+        "description": "scrim th",
+        "notified": false
+      },
+      {
+        "day": "Tuesday",
+        "time": "15:00",
+        "description": "scrim sk",
+        "notified": false
+      },
+      {
+        "day": "Tuesday",
+        "time": "21:00",
+        "description": "mc",
+        "notified": false
+      },
+      {
+        "day": "Friday",
+        "time": "16:00",
+        "description": "mc",
+        "notified": true
+      }
+    ],
+    "daily_reminder_time": "12:00",
+    "pre_event_minutes": 10,
+    "schedule_message_id": 1441952379132969136
+  }
+}

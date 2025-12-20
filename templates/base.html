@@ -216,35 +216,96 @@
             }
         }
 
+
+        .mobile-menu-btn {
+        display: none;
+        background: none;
+        border: none;
+        color: var(--text);
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+        .mobile-menu-btn {
+            display: block;
+        }
+        
+        .nav {
+            flex-direction: row;
+            justify-content: space-between;
+            padding: 1rem;
+        }
+        
+        .nav-left {
+            gap: 0; /* Remove gap on mobile */
+        }
+        
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem; /* Space between mode badge and hamburger */
+        }
+        
+        .nav-links {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--card);
+            flex-direction: column;
+            padding: 1rem;
+            border-bottom: 2px solid var(--primary);
+            gap: 0.5rem;
+        }
+        
+        .nav-links.active {
+            display: flex;
+        }
+        
+        .nav-link {
+            padding: 0.75rem;
+            border-radius: 6px;
+        }
+        
+        .nav-link:hover {
+            background: var(--dark);
+        }
+        
+        .page-title {
+            font-size: 2rem;
+        }
+    }
+
         
     </style>
     {% block extra_styles %}{% endblock %}
 </head>
 <body>
     <nav class="nav">
-        <div class="nav-left">
-            <a href="/dashboard" class="logo">Brawlytics</a>
-            <div class="nav-links">
-                <a href="/dashboard" class="nav-link">Dashboard</a>
-                <a href="/region/all" class="nav-link">All Regions</a>
-                <a href="/meta" class="nav-link">Meta</a>
-                <a href="/brawlers" class="nav-link">Brawlers</a>
-                <a href="/modes" class="nav-link">Maps & Modes</a>
-                {% if view_mode == 'offseason' %}
-                <a href="/players" class="nav-link">Players</a>
-                
-                <a href="/possible-teams" class="nav-link">Possible Teams</a>
-                {% endif %}
-                <a href="/about" class="nav-link">About</a>
-                <a href="/settings" class="nav-link">Settings</a>
-            </div>
+    <div class="nav-left">
+        <a href="/dashboard" class="logo">Brawlytics</a>
+        <div class="nav-links" id="navLinks">
+            <a href="/dashboard" class="nav-link">Dashboard</a>
+            <a href="/region/all" class="nav-link">All Regions</a>
+            <a href="/meta" class="nav-link">Meta</a>
+            <a href="/brawlers" class="nav-link">Brawlers</a>
+            <a href="/modes" class="nav-link">Maps & Modes</a>
+            {% if view_mode == 'offseason' %}
+            <a href="/players" class="nav-link">Players</a>
+            <a href="/possible-teams" class="nav-link">Possible Teams</a>
+            {% endif %}
+            <a href="/about" class="nav-link">About</a>
+            <a href="/settings" class="nav-link">Settings</a>
         </div>
-        <div class="nav-right">
-            <span class="mode-badge">{{ view_mode|upper }}</span>
-            <span class="username">{{ user }}</span>
-            <a href="/logout" class="btn btn-outline">Logout</a>
-        </div>
-    </nav>
+    </div>
+    <div class="nav-right">
+        <span class="mode-badge">{{ view_mode|upper }}</span>
+        <button class="mobile-menu-btn" onclick="toggleMenu()">☰</button>
+    </div>
+</nav>
     
     <div class="container">
         {% block content %}{% endblock %}
@@ -272,8 +333,70 @@
                 }
             });
         });
+
+
+        const themes = {
+            'red': {'primary': '#ef4444', 'bg': '#0a0a0a', 'card': '#111111', 'dark': '#1a1a1a'},
+            'brawl': {'primary': '#e94560', 'bg': '#1a1a2e', 'card': '#16213e', 'dark': '#0f3460'},
+            'purple': {'primary': '#8b5cf6', 'bg': '#1e1b29', 'card': '#2d2438', 'dark': '#1a1625'},
+            'blue': {'primary': '#3b82f6', 'bg': '#0f172a', 'card': '#1e293b', 'dark': '#0f172a'},
+            'green': {'primary': '#10b981', 'bg': '#064e3b', 'card': '#065f46', 'dark': '#022c22'},
+            'orange': {'primary': '#f97316', 'bg': '#1c1917', 'card': '#292524', 'dark': '#1c1917'}
+        };
+
+        // Load theme from localStorage (not sessionStorage!)
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('userTheme') || 'red';
+            applyTheme(savedTheme);
+        }
+
+        function applyTheme(themeName) {
+            const theme = themes[themeName] || themes['red'];
+            const root = document.documentElement;
+            
+            root.style.setProperty('--primary', theme.primary);
+            root.style.setProperty('--bg', theme.bg);
+            root.style.setProperty('--card', theme.card);
+            root.style.setProperty('--dark', theme.dark);
+        }
+
+        function saveTheme(themeName) {
+            localStorage.setItem('userTheme', themeName);
+            applyTheme(themeName);
+        }
+
+        // Apply theme immediately (before page renders)
+        loadTheme();
+
+        function toggleMenu() {
+            const navLinks = document.getElementById('navLinks');
+            navLinks.classList.toggle('active');
+        }
+
+        // Close menu when clicking a link
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                document.getElementById('navLinks').classList.remove('active');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            const nav = document.querySelector('.nav');
+            const menuBtn = document.querySelector('.mobile-menu-btn');
+            if (!nav.contains(e.target) || e.target === menuBtn) {
+                return;
+            }
+            if (!e.target.closest('.nav-links') && !e.target.closest('.mobile-menu-btn')) {
+                document.getElementById('navLinks').classList.remove('active');
+            }
+        });
     </script>
     
+    <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "944c248aa0df47ee945bbfcfe1c3a46f"}'></script><!-- End Cloudflare Web Analytics -->
+
     {% block scripts %}{% endblock %}
+
+
 </body>
 </html>
