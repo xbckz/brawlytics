@@ -1,2 +1,0 @@
-import brawl_match_processor
-print(dir(brawl_match_processor))

@@ -1,452 +1,662 @@
 {% extends "base.html" %}
 
-{% block title %}{{ region }} - Brawlytics{% endblock %}
+{% block title %}{{ region|region_name }} - Brawlytics{% endblock %}
 
 {% block extra_styles %}
 <style>
-    /* Page Header */
-    .page-header {
-        text-align: center;
-        margin-bottom: 2rem;
-        padding: 2rem 0 1.5rem;
-        position: relative;
+    html, body {
+        overflow: clip;
+        height: 100vh;
     }
-    
-    .page-header::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 400px;
-        height: 400px;
-        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-        opacity: 0.1;
-        pointer-events: none;
-        z-index: -1;
+
+    .breadcrumb {
+        margin-bottom: 0.75rem;
     }
-    
-    .page-title-wrapper {
+
+    .region-layout {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        grid-template-rows: auto 1fr;
+        gap: 1rem;
+        height: calc(100vh - 140px);
+        overflow: visible;
+        width: 100%;
+    }
+
+    /* Left Column - Hero Card */
+    .region-hero-card {
+        background: var(--card);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 1.1rem 0.75rem;
+        border: 2px solid rgba(var(--primary-rgb), 0.25);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 1.5rem;
-        margin-bottom: 0.5rem;
+        gap: 0.4rem;
+        flex-shrink: 0;
+        transition: transform 0.2s ease;
     }
-    
-    .region-flag {
-        width: 60px;
-        height: 42px;
+
+    .region-hero-flag {
+        width: 50px;
+        height: 36px;
         object-fit: cover;
-        border-radius: 8px;
+        border-radius: 6px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.35);
     }
-    
-    .all-region-icon {
-        width: 50px;
-        height: 50px;
-        object-fit: cover;
+
+    .region-hero-flag.all-icon {
+        width: 44px;
+        height: 44px;
         border-radius: 8px;
-        
     }
-    
-    .page-title {
-        font-size: 2.5rem;
-        font-weight: 800;
+
+    .region-hero-card h1 {
+        font-size: 1.4rem;
+        font-weight: 900;
+        text-align: center;
+        margin: 0;
+        line-height: 1;
         background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        letter-spacing: -1.5px;
-        margin: 0;
+        letter-spacing: -0.3px;
+        padding-bottom: 0.1rem;
     }
-    
-    .page-subtitle {
-        color: var(--text-dim);
-        font-size: 1rem;
-    }
-    
-    /* Stats Grid */
-    .stat-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-        max-width: 600px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-    
-    .stat-card {
+
+    /* Regions Section */
+    .regions-section {
         background: var(--card);
-        padding: 2rem;
-        border-radius: 16px;
-        border: 1px solid rgba(255,255,255,0.05);
-        position: relative;
-        overflow: hidden;
-        text-align: center;
-    }
-    
-    .stat-card::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 4px;
-        height: 100%;
-        background: var(--primary);
-    }
-    
-    .stat-label {
-        color: var(--text-dim);
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 0.5rem;
-        font-weight: 600;
-    }
-    
-    .stat-value {
-        font-size: 2.5rem;
-        font-weight: 800;
-        color: var(--text);
-        letter-spacing: -1px;
-    }
-    
-    /* Section Title */
-    .section-title {
-        font-size: 1.75rem;
-        font-weight: 700;
-        margin-bottom: 0;
-        color: var(--text);
-        position: relative;
-        padding-left: 1rem;
-    }
-    
-    .section-title::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 4px;
-        height: 70%;
-        background: var(--primary);
-        border-radius: 2px;
-    }
-    
-    /* Leaderboard - matching meta page style */
-    .leaderboard {
-        background: var(--card);
+        backdrop-filter: blur(15px);
         border-radius: 16px;
         overflow: hidden;
-        margin-bottom: 3.5rem;
-        border: 1px solid rgba(255,255,255,0.05);
-        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
-    }
-    
-    .leaderboard-header {
-        background: linear-gradient(135deg, var(--dark) 0%, var(--card) 100%);
-        padding: 1.75rem 2rem;
-        font-size: 1.5rem;
-        font-weight: 700;
-        border-bottom: 2px solid var(--primary);
-        position: relative;
-    }
-    
-    .leaderboard-header::after {
-        content: "";
-        position: absolute;
-        bottom: -2px;
-        left: 0;
-        width: 100%;
-        height: 2px;
-        background: var(--primary);
-        box-shadow: 0 0 20px var(--primary);
-    }
-    
-    .leaderboard-item {
-        padding: 1.25rem 2rem;
-        border-bottom: 1px solid rgba(255,255,255,0.03);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        transition: all 0.2s ease;
-        cursor: pointer;
-        position: relative;
-    }
-    
-    .leaderboard-item::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 3px;
-        height: 100%;
-        background: var(--primary);
-        opacity: 0;
-        transition: opacity 0.2s ease;
-    }
-    
-    .leaderboard-item:hover {
-        background: var(--dark);
-        padding-left: 2.5rem;
-    }
-    
-    .leaderboard-item:hover::before {
-        opacity: 1;
-    }
-    
-    .leaderboard-item:last-child {
-        border-bottom: none;
-    }
-    
-    .team-left {
-        display: flex;
-        align-items: center;
-        gap: 1.5rem;
-    }
-    
-    .team-rank {
-        font-size: 1.2rem;
-        font-weight: 800;
-        color: var(--primary);
-        min-width: 40px;
-        text-align: center;
-    }
-    
-    .team-logo {
-        width: 50px;
-        height: 50px;
-        border-radius: 8px;
-        object-fit: contain;
-        flex-shrink: 0;
-        transition: transform 0.2s ease;
-    }
-    
-    .leaderboard-item:hover .team-logo {
-        transform: scale(1.15);
-    }
-    
-    .team-info {
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         display: flex;
         flex-direction: column;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
     }
-    
-    .team-name {
-        font-weight: 700;
-        font-size: 1.1rem;
-        letter-spacing: -0.3px;
+
+    .regions-section:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
     }
-    
-    .team-region {
-        color: var(--text-dim);
+
+    .section-header {
+        background: var(--dark);
+        padding: 0.6rem 0.8rem;
         font-size: 0.85rem;
-        margin-top: 0.25rem;
+        font-weight: 800;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        flex-shrink: 0;
+        color: var(--text);
     }
-    
-    .team-record {
-        font-weight: 700;
-        font-size: 1.05rem;
-        font-variant-numeric: tabular-nums;
+
+    .regions-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
+        padding: 0.5rem;
     }
-    
-    .team-score {
-        color: white;
-    }
-    
-    /* Color-coded win rates */
-    .wr-s {
-        color: #22c55e;
-    }
-    
-    .wr-a {
-        color: #84cc16;
-    }
-    
-    .wr-b {
-        color: #eab308;
-    }
-    
-    .wr-c {
-        color: #f97316;
-    }
-    
-    .wr-d {
-        color: #ef4444;
-    }
-    
-    .wr-f {
-        color: #991b1b;
-    }
-    
-    
-    @media (max-width: 768px) {
-    .page-header::before {
-        width: 300px;
-        height: 300px;
-    }
-    
-    .page-title {
-        font-size: 2rem;
-    }
-    
-    .page-title-wrapper {
-        gap: 1rem;
-    }
-    
-    .region-flag {
-        width: 45px;
-        height: 32px;
-    }
-    
-    .all-region-icon {
-        width: 38px;
-        height: 38px;
-    }
-    
-    .page-subtitle {
-        font-size: 0.9rem;
-    }
-    
-    .team-rank {
-        font-size: 1rem;
-        min-width: 30px;
-    }
-    
-    .stat-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-    }
-    
-    .stat-card {
-        padding: 1.5rem 1rem;
-    }
-    
-    .stat-value {
-        font-size: 2rem;
-    }
-    
-    .stat-label {
-        font-size: 0.85rem;
-    }
-    
-    /* Match dashboard mobile layout */
-    .leaderboard-item {
-        padding: 1.5rem 1rem;
+
+    .region-item {
+        background: var(--dark);
+        padding: 0.6rem 0.5rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
+        display: flex;
+        align-items: center;
         gap: 0.5rem;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        flex-shrink: 0;
     }
-    
-    .leaderboard-item:hover {
-        padding-left: 1.5rem;
+
+    .region-item:hover {
+        background: rgba(var(--primary-rgb), 0.15);
+        border-color: rgba(var(--primary-rgb), 0.5);
     }
-    
-    .team-left {
-        gap: 1rem;
+
+    .region-item.active {
+        background: rgba(var(--primary-rgb), 0.2);
+        border-color: rgba(var(--primary-rgb), 0.6);
+    }
+
+    .region-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .region-icon img {
+        width: 30px;
+        height: 24px;
+        object-fit: cover;
+        border-radius: 3px;
+    }
+
+    .region-icon img.all-icon {
+        width: 22px;
+        height: 22px;
+    }
+
+    .region-info {
         flex: 1;
         min-width: 0;
     }
-    
-    .team-logo {
-        width: 40px;
-        height: 40px;
+
+    .region-name {
+        font-weight: 700;
+        font-size: 0.8rem;
+        line-height: 1.15;
+        margin-bottom: 0.1rem;
     }
-    
-    .team-rank {
-        font-size: 1.1rem;
-        min-width: 28px;
+
+    .region-sub {
+        font-size: 0.65rem;
+        color: var(--text-dim);
+    }
+
+    /* Overview Stats Box */
+    .overview-stats-box {
+        background: var(--card);
+        backdrop-filter: blur(15px);
+        border-radius: 16px;
+        overflow: hidden;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
         flex-shrink: 0;
     }
-    
+
+    .overview-stats-box:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+
+    .overview-stats-inner {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.3rem;
+        padding: 0.3rem;
+    }
+
+    .overview-stat-card {
+        background: var(--dark);
+        padding: 0.3rem 0.25rem;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        text-align: center;
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    .overview-stat-label {
+        font-size: 0.6rem;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.5);
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        margin-bottom: 0.1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .overview-stat-value {
+        font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+        font-weight: 900;
+        color: var(--text);
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Stats Section */
+    .stats-section {
+        background: var(--card);
+        backdrop-filter: blur(15px);
+        border-radius: 16px;
+        overflow: hidden;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
+    }
+
+    .stats-section:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+
+    .stats-header {
+        background: var(--dark);
+        padding: 0.6rem 0.8rem;
+        font-size: 0.85rem;
+        font-weight: 800;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        flex-shrink: 0;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .stats-content {
+        padding: 0.4rem;
+        background: var(--bg);
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* Team items */
+    .team-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.4rem;
+    }
+
+    .team-grid.single-column {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+    }
+
+    .team-item {
+        background: var(--dark);
+        padding: 0.6rem 0.5rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .team-item:hover {
+        background: rgba(var(--primary-rgb), 0.15);
+        border-color: rgba(var(--primary-rgb), 0.5);
+    }
+
+    .team-rank {
+        font-size: 0.7rem;
+        font-weight: 800;
+        min-width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.05);
+        color: var(--text-dim);
+        flex-shrink: 0;
+    }
+
+    .team-rank.top-3 {
+        background: rgba(var(--primary-rgb, 239, 68, 68), 0.15);
+        color: var(--primary);
+    }
+
+    .team-icon {
+        width: 28px;
+        height: 28px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+    }
+
+    .team-icon img {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+        border-radius: 6px;
+    }
+
+    .team-info {
+        flex: 1;
+        min-width: 0;
+    }
+
     .team-name {
+        font-weight: 700;
+        font-size: 0.8rem;
+        line-height: 1.15;
+        margin-bottom: 0.1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .team-picks {
+        font-size: 0.6rem;
+        color: var(--text-dim);
+    }
+
+    .team-winrate {
         font-size: 1rem;
+        font-weight: 800;
+        flex-shrink: 0;
     }
-    
-    .team-record {
-        font-size: 0.95rem;
+
+    /* Bottom Row */
+    .bottom-stats-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1rem;
+        align-self: start;
     }
-}
 
+    .bottom-stats-row .stats-section {
+        height: auto;
+        align-self: start;
+    }
 
+    .bottom-stats-row .stats-content {
+        padding: 0.4rem;
+        background: var(--bg);
+        overflow-y: visible;
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* Win rate colors */
+    .wr-s { color: #10b981; }
+    .wr-a { color: #84cc16; }
+    .wr-b { color: #fbbf24; }
+    .wr-c { color: #fb923c; }
+    .wr-d { color: #f87171; }
+    .wr-f { color: #dc2626; }
+
+    .no-data {
+        text-align: center;
+        padding: 1.5rem 0.5rem;
+        color: var(--text-dim);
+        font-size: 0.8rem;
+    }
+
+    /* Custom scrollbar */
+    .stats-content::-webkit-scrollbar,
+    .regions-list::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .stats-content::-webkit-scrollbar-track,
+    .regions-list::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.02);
+    }
+
+    .stats-content::-webkit-scrollbar-thumb,
+    .regions-list::-webkit-scrollbar-thumb {
+        background: rgba(var(--primary-rgb), 0.4);
+        border-radius: 2px;
+    }
+
+    .stats-content::-webkit-scrollbar-thumb:hover,
+    .regions-list::-webkit-scrollbar-thumb:hover {
+        background: rgba(var(--primary-rgb), 0.6);
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="breadcrumb">
-    <a href="/dashboard">Home</a> / {{ region }}
+    <a href="/dashboard">Home</a>
+    <span class="breadcrumb-separator">/</span>
+    <span class="breadcrumb-current">{{ region|region_name }}</span>
 </div>
 
-<div class="page-header">
-    <div class="page-title-wrapper">
-        {% if region_code == 'ALL' %}
-        <img src="/static/images/flags/all.png" alt="All Regions" class="all-region-icon">
-        {% elif region_code == 'NA' %}
-        <img src="/static/images/flags/us.png" alt="North America" class="region-flag">
-        {% elif region_code == 'EU' %}
-        <img src="/static/images/flags/eu.png" alt="Europe" class="region-flag">
-        {% elif region_code == 'LATAM' %}
-        <img src="/static/images/flags/br.png" alt="LATAM" class="region-flag">
-        {% elif region_code == 'EA' %}
-        <img src="/static/images/flags/ea.png" alt="East Asia" class="region-flag">
-        {% elif region_code == 'SEA' %}
-        <img src="/static/images/flags/all.png" alt="Southeast Asia" class="all-region-icon">
-        {% endif %}
-        <h1 class="page-title">{{ region }}</h1>
-    </div>
-    <p class="page-subtitle">Competitive statistics for {{ region }}</p>
-</div>
+<div class="region-layout">
+    <!-- Left Column: Hero + Regions + Overview -->
+    <div style="display: flex; flex-direction: column; gap: 1rem; grid-row: 1 / 3; align-self: start; overflow: visible;">
+        <div class="region-hero-card">
+            {% if region_code == 'ALL' %}
+            <img src="/static/images/flags/all.png" alt="All Regions" class="region-hero-flag all-icon">
+            {% elif region_code == 'NA' %}
+            <img src="/static/images/flags/us.png" alt="North America" class="region-hero-flag">
+            {% elif region_code == 'EU' %}
+            <img src="/static/images/flags/eu.png" alt="Europe" class="region-hero-flag">
+            {% elif region_code == 'SA' %}
+            <img src="/static/images/flags/br.png" alt="SA" class="region-hero-flag">
+            {% elif region_code == 'EA' %}
+            <img src="/static/images/flags/ea.png" alt="East Asia" class="region-hero-flag">
+            {% elif region_code == 'SEA' %}
+            <img src="/static/images/flags/all.png" alt="Southeast Asia" class="region-hero-flag all-icon">
+            {% endif %}
+            <h1>{{ region|region_name }}</h1>
+        </div>
 
-<div class="stat-grid">
-    <div class="stat-card">
-        <div class="stat-label">Matches</div>
-        <div class="stat-value">{{ total_matches  }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Teams</div>
-        <div class="stat-value">{{ total_teams }}</div>
-    </div>
-</div>
-
-<div style="margin-bottom: 2rem;">
-    <h2 class="section-title">Teams</h2>
-</div>
-
-<div class="leaderboard">
-    <div class="leaderboard-header">Ranked by Win Rate</div>
-    {% for team_name, data in top_teams %}
-    {% set wr = (data.wins / data.matches * 100) if data.matches > 0 else 0 %}
-    {% set team_logo = team_name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
-    <div class="leaderboard-item" onclick="location.href='/team/{{ team_name }}'">
-        <div class="team-left">
-            <div class="team-rank">{{ loop.index }}</div>
-            <img src="/static/images/teams/{{ team_logo }}" 
-                 alt="{{ team_name }}" 
-                 class="team-logo"
-                 onerror="this.style.display='none'">
-            <div class="team-info">
-                <span class="team-name">{{ team_name }}</span>
-                {% if region_code == 'ALL' %}
-                <span class="team-region">{{ data.region }}</span>
-                {% endif %}
+        <div class="regions-section">
+            <div class="section-header">Regions</div>
+            <div class="regions-list">
+                
+                <a href="/region/na" class="region-item {{ 'active' if region_code == 'NA' }}">
+                    <div class="region-icon"><img src="/static/images/flags/us.png" alt="NA"></div>
+                    <div class="region-info">
+                        <div class="region-name">North America</div>
+                        <div class="region-sub">NA region</div>
+                    </div>
+                </a>
+                <a href="/region/eu" class="region-item {{ 'active' if region_code == 'EU' }}">
+                    <div class="region-icon"><img src="/static/images/flags/eu.png" alt="EU"></div>
+                    <div class="region-info">
+                        <div class="region-name">Europe</div>
+                        <div class="region-sub">EU region</div>
+                    </div>
+                </a>
+                <a href="/region/sa" class="region-item {{ 'active' if region_code == 'SA' }}">
+                    <div class="region-icon"><img src="/static/images/flags/br.png" alt="SA"></div>
+                    <div class="region-info">
+                        <div class="region-name">South America</div>
+                        <div class="region-sub">SA region</div>
+                    </div>
+                </a>
+                <a href="/region/ea" class="region-item {{ 'active' if region_code == 'EA' }}">
+                    <div class="region-icon"><img src="/static/images/flags/ea.png" alt="EA"></div>
+                    <div class="region-info">
+                        <div class="region-name">East Asia</div>
+                        <div class="region-sub">EA region</div>
+                    </div>
+                </a>
             </div>
         </div>
-        <div class="team-record">
-            <span class="team-score">{{ data.wins }}-{{ data.losses }}</span> • 
-            {% if wr >= 65 %}
-            <span class="team-winrate wr-s">{{ "%.1f"|format(wr) }}%</span>
-            {% elif wr >= 57.5 %}
-            <span class="team-winrate wr-a">{{ "%.1f"|format(wr) }}%</span>
-            {% elif wr >= 50 %}
-            <span class="team-winrate wr-b">{{ "%.1f"|format(wr) }}%</span>
-            {% elif wr >= 42.5 %}
-            <span class="team-winrate wr-c">{{ "%.1f"|format(wr) }}%</span>
-            {% elif wr >= 35 %}
-            <span class="team-winrate wr-d">{{ "%.1f"|format(wr) }}%</span>
+
+        <!-- Overview Stats -->
+        <div class="overview-stats-box">
+            <div class="section-header">Overview</div>
+            <div class="overview-stats-inner">
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">Teams</div>
+                    <div class="overview-stat-value">{{ total_teams }}</div>
+                </div>
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">Players</div>
+                    <div class="overview-stat-value">{{ total_teams * 3 }}</div>
+                </div>
+                <div class="overview-stat-card" style="grid-column: 1 / -1;">
+                    <div class="overview-stat-label">Matches</div>
+                    <div class="overview-stat-value">{{ total_matches }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 1: Top Teams by Win Rate -->
+    <div class="stats-section">
+        <div class="stats-header">Top Teams by Win Rate</div>
+        <div class="stats-content">
+            {% if top_teams %}
+            <div class="team-grid">
+                {% for team_name, data in top_teams[:9] %}
+                {% set team_wr = (data.wins / data.matches * 100) if data.matches > 0 else 0 %}
+                <div class="team-item" onclick="location.href='/team/{{ team_name }}'">
+                    <div class="team-rank {{ 'top-3' if loop.index <= 3 }}">{{ loop.index }}</div>
+                    <div class="team-icon">
+                        {% set team_logo_filename = team_name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+                        <img src="/static/images/teams/{{ team_logo_filename }}"
+                             alt="{{ team_name }}"
+                             onerror="this.src='/static/images/teams/default.png'">
+                    </div>
+                    <div class="team-info">
+                        <div class="team-name">{{ team_name }}</div>
+                        <div class="team-picks">{{ data.wins }}W - {{ data.losses }}L{% if region_code == 'ALL' %} · {{ data.region|region_name }}{% endif %}</div>
+                    </div>
+                    {% if team_wr >= 65 %}
+                    <div class="team-winrate wr-s">{{ "%.0f"|format(team_wr) }}%</div>
+                    {% elif team_wr >= 57.5 %}
+                    <div class="team-winrate wr-a">{{ "%.0f"|format(team_wr) }}%</div>
+                    {% elif team_wr >= 50 %}
+                    <div class="team-winrate wr-b">{{ "%.0f"|format(team_wr) }}%</div>
+                    {% elif team_wr >= 42.5 %}
+                    <div class="team-winrate wr-c">{{ "%.0f"|format(team_wr) }}%</div>
+                    {% elif team_wr >= 35 %}
+                    <div class="team-winrate wr-d">{{ "%.0f"|format(team_wr) }}%</div>
+                    {% else %}
+                    <div class="team-winrate wr-f">{{ "%.0f"|format(team_wr) }}%</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
             {% else %}
-            <span class="team-winrate wr-f">{{ "%.1f"|format(wr) }}%</span>
+            <div class="no-data">No team data</div>
             {% endif %}
         </div>
     </div>
-    {% endfor %}
+
+    <!-- Row 2: Three columns -->
+    <div class="bottom-stats-row">
+        <!-- Most Wins -->
+        <div class="stats-section">
+            <div class="stats-header">Most Wins</div>
+            <div class="stats-content">
+                {% if top_teams %}
+                <div class="team-grid single-column">
+                    {% for team_name, data in top_teams|sort(attribute='1.wins', reverse=true) %}
+                    {% if loop.index <= 5 %}
+                    <div class="team-item" onclick="location.href='/team/{{ team_name }}'">
+                        <div class="team-icon">
+                            {% set team_logo_filename = team_name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+                            <img src="/static/images/teams/{{ team_logo_filename }}"
+                                 alt="{{ team_name }}"
+                                 onerror="this.src='/static/images/teams/default.png'">
+                        </div>
+                        <div class="team-info">
+                            <div class="team-name">{{ team_name }}</div>
+                            <div class="team-picks">{% if region_code == 'ALL' %}{{ data.region|region_name }}{% else %}{{ data.wins }}W - {{ data.losses }}L{% endif %}</div>
+                        </div>
+                        <div class="team-winrate wr-s">{{ data.wins }}W</div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="no-data">No data</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Most Matches -->
+        <div class="stats-section">
+            <div class="stats-header">Most Matches</div>
+            <div class="stats-content">
+                {% if top_teams %}
+                <div class="team-grid single-column">
+                    {% for team_name, data in top_teams|sort(attribute='1.matches', reverse=true) %}
+                    {% if loop.index <= 5 %}
+                    <div class="team-item" onclick="location.href='/team/{{ team_name }}'">
+                        <div class="team-icon">
+                            {% set team_logo_filename = team_name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+                            <img src="/static/images/teams/{{ team_logo_filename }}"
+                                 alt="{{ team_name }}"
+                                 onerror="this.src='/static/images/teams/default.png'">
+                        </div>
+                        <div class="team-info">
+                            <div class="team-name">{{ team_name }}</div>
+                            <div class="team-picks">{% if region_code == 'ALL' %}{{ data.region|region_name }}{% else %}{{ data.wins }}W - {{ data.losses }}L{% endif %}</div>
+                        </div>
+                        <div class="team-winrate" style="color: var(--text);">{{ data.matches }}</div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="no-data">No data</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Worst Win Rate -->
+        <div class="stats-section">
+            <div class="stats-header">Worst Win Rate</div>
+            <div class="stats-content">
+                {% if worst_teams %}
+                <div class="team-grid single-column">
+                    {% for team_name, data in worst_teams %}
+                    {% if loop.index <= 5 %}
+                    {% set team_wr = (data.wins / data.matches * 100) if data.matches > 0 else 0 %}
+                    <div class="team-item" onclick="location.href='/team/{{ team_name }}'">
+                        <div class="team-icon">
+                            {% set team_logo_filename = team_name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+                            <img src="/static/images/teams/{{ team_logo_filename }}"
+                                 alt="{{ team_name }}"
+                                 onerror="this.src='/static/images/teams/default.png'">
+                        </div>
+                        <div class="team-info">
+                            <div class="team-name">{{ team_name }}</div>
+                            <div class="team-picks">{{ data.wins }}W - {{ data.losses }}L{% if region_code == 'ALL' %} · {{ data.region|region_name }}{% endif %}</div>
+                        </div>
+                        {% if team_wr >= 65 %}
+                        <div class="team-winrate wr-s">{{ "%.0f"|format(team_wr) }}%</div>
+                        {% elif team_wr >= 57.5 %}
+                        <div class="team-winrate wr-a">{{ "%.0f"|format(team_wr) }}%</div>
+                        {% elif team_wr >= 50 %}
+                        <div class="team-winrate wr-b">{{ "%.0f"|format(team_wr) }}%</div>
+                        {% elif team_wr >= 42.5 %}
+                        <div class="team-winrate wr-c">{{ "%.0f"|format(team_wr) }}%</div>
+                        {% elif team_wr >= 35 %}
+                        <div class="team-winrate wr-d">{{ "%.0f"|format(team_wr) }}%</div>
+                        {% else %}
+                        <div class="team-winrate wr-f">{{ "%.0f"|format(team_wr) }}%</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="no-data">No data</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

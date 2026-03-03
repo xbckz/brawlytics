@@ -427,7 +427,7 @@
 <div class="breadcrumb">
     <a href="/dashboard">Home</a>
     <span class="breadcrumb-separator">/</span>
-    <a href="/region/{{ player.region }}">{{ player.region }}</a>
+    <a href="/region/{{ player.region }}">{{ player.region|region_name }}</a>
     <span class="breadcrumb-separator">/</span>
     <span class="breadcrumb-current">{{ player.name }}</span>
 </div>
@@ -442,7 +442,7 @@
         </div>
         <div class="player-tag">{{ player.tag }}</div>
         <h1>{{ player.name }}</h1>
-        <div class="player-region-badge">{{ player.region }}</div>
+        <div class="player-region-badge">{{ player.region|region_name }}</div>
     </div>
 </div>
 

@@ -1,0 +1,1090 @@
+{% extends "base.html" %}
+
+{% block title %}{{ team1 }} vs {{ team2 }} - Brawlytics{% endblock %}
+
+{% block extra_styles %}
+<style>
+    html, body {
+        overflow: clip;
+        height: 100vh;
+    }
+
+    .breadcrumb {
+        margin-bottom: 0.75rem;
+    }
+
+    /*
+     * --left-h: total height of the left column (hero card + gap + modes box with 6 rows).
+     * hero card ≈ 195px  |  gap: 8px  |  modes box ≈ 315px  → total ≈ 518px
+     * The matches box uses this as its exact height so it lines up flush.
+     * The analysis boxes (picks + maps) split this height between them.
+     */
+    :root {
+        --left-h: 538px;
+        --modes-h: 315px;
+    }
+
+    /* ── Main layout: left 220px | right fills rest ── */
+    .h2h-layout {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 1rem;
+        width: 100%;
+        align-items: start;
+    }
+
+    /* Left column: hero card stacked above modes box */
+    .left-column {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    /*
+     * Right column: [matches wider] [analysis fills rest]
+     * Both the matches column and analysis column are capped at --left-h.
+     */
+    .right-column {
+        display: grid;
+        grid-template-columns: 420px 1fr;
+        gap: 0.5rem;
+        min-width: 0;
+        align-items: start;
+    }
+
+    /* Analysis column: picks (wider) + maps (narrower) SIDE BY SIDE */
+    .analysis-column {
+        display: flex;
+        flex-direction: row;
+        gap: 0.5rem;
+        min-width: 0;
+        height: var(--left-h);
+        align-items: flex-start;
+    }
+
+    .stats-section.picks-box { flex: 3; min-width: 0; height: 100%; }
+    .stats-section.maps-box  { flex: 2; min-width: 0; max-height: 100%; }
+
+    /* ── Hero card (matches team_mode hero style) ── */
+    .h2h-hero-card {
+        background: var(--card);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 0.6rem;
+        border: 2px solid rgba(var(--primary-rgb), 0.25);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.2s ease;
+    }
+
+    .h2h-hero-card:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+
+    .hero-logos {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+    }
+
+    .hero-logo {
+        width: 50px;
+        height: 50px;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 12px rgba(var(--primary-rgb), 0.4));
+        flex-shrink: 0;
+        transition: transform 0.2s ease, filter 0.2s ease;
+    }
+
+    .hero-logo:hover {
+        transform: scale(1.15);
+        filter: drop-shadow(0 6px 16px rgba(var(--primary-rgb), 0.7));
+    }
+
+    .hero-vs {
+        font-size: 0.9rem;
+        font-weight: 900;
+        color: var(--text-dim);
+    }
+
+    .hero-score {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1.6rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .hero-score-sep {
+        font-size: 1rem;
+        color: var(--text-dim);
+        font-weight: 700;
+    }
+
+    .hero-sub {
+        font-size: 0.6rem;
+        color: var(--text-dim);
+        text-align: center;
+    }
+
+    /* ── Overview stats 2x2 grid (same as team_mode) ── */
+    .overview-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+        width: 100%;
+    }
+
+    .overview-stat-card {
+        background: var(--dark);
+        padding: 0.45rem;
+        border-radius: 8px;
+        text-align: center;
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    .overview-stat-label {
+        font-size: 0.55rem;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.5);
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        margin-bottom: 0.1rem;
+    }
+
+    .overview-stat-value {
+        font-size: 0.9rem;
+        font-weight: 900;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    /* ── By Mode card — no scroll, natural height of however many rows ── */
+    .left-card {
+        background: var(--card);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        overflow: hidden;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
+    }
+
+    .left-card:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+
+    .left-card-header {
+        background: var(--dark);
+        padding: 0.4rem 0.7rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text);
+        flex-shrink: 0;
+    }
+
+    .left-card-body {
+        padding: 0.3rem;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        /* No overflow — shows all rows, no scrollbar */
+    }
+
+    /* mode rows in left card */
+    .mode-row {
+        background: var(--dark);
+        border-radius: 7px;
+        border: 1px solid rgba(255,255,255,0.06);
+        padding: 0.35rem 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.15s ease;
+    }
+
+    .mode-row:hover {
+        background: rgba(var(--primary-rgb), 0.1);
+        border-color: rgba(var(--primary-rgb), 0.4);
+    }
+
+    .mode-row-icon {
+        width: 27px;
+        height: 27px;
+        object-fit: contain;
+        flex-shrink: 0;
+    }
+
+    .mode-row-name {
+        flex: 1;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+    }
+
+    .mode-row-score {
+        font-size: 0.7rem;
+        color: var(--text-dim);
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    .mode-row-wr {
+        font-size: 0.8rem;
+        font-weight: 900;
+        flex-shrink: 0;
+        width: 40px;
+        text-align: right;
+    }
+
+    /* ── Shared card shell for all right-side boxes ── */
+    .stats-section {
+        background: var(--card);
+        backdrop-filter: blur(15px);
+        border-radius: 16px;
+        overflow: hidden;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
+    }
+
+    .stats-section:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+
+
+    /* Matches box: exact height of the full left column — lines up flush */
+    .stats-section.matches-box {
+        height: var(--left-h);
+    }
+
+    /* picks-box and maps-box flex ratios set in .analysis-column block above */
+
+    .stats-header {
+        background: var(--dark);
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
+        font-weight: 800;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        flex-shrink: 0;
+        color: var(--text);
+    }
+
+    .stats-content {
+        padding: 0.35rem;
+        background: var(--bg);
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .stats-content::-webkit-scrollbar { width: 4px; }
+    .stats-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+    .stats-content::-webkit-scrollbar-thumb { background: rgba(var(--primary-rgb),0.4); border-radius: 2px; }
+    .stats-content::-webkit-scrollbar-thumb:hover { background: rgba(var(--primary-rgb),0.6); }
+
+    /* ── Match card: header bar + body ── */
+    .match-card {
+        background: var(--dark);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.07);
+        margin-bottom: 0.4rem;
+        overflow: hidden;
+        transition: all 0.15s ease;
+    }
+
+    .match-card:last-child { margin-bottom: 0; }
+
+    /* no hover on match cards */
+
+    /* ── Score row: [team1 logo + score] [mode info + time] [score + team2 logo] ── */
+    .match-header {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.6rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    /* Left side: logo then score, score nearest centre */
+    .match-header-team {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .match-header-team.left  { flex-direction: row;         justify-content: flex-start; }
+    .match-header-team.right { flex-direction: row-reverse; justify-content: flex-start; }
+
+    .match-header-logo {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+        flex-shrink: 0;
+    }
+
+    .match-header-team-score {
+        font-size: 1.05rem;
+        font-weight: 900;
+        letter-spacing: 0.5px;
+        flex-shrink: 0;
+        line-height: 1;
+    }
+
+    /* Centre: mode icon + name + time */
+    .match-header-centre {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.05rem;
+        min-width: 0;
+    }
+
+    .match-header-mode {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .match-header-mode-icon {
+        width: 19px;
+        height: 19px;
+        object-fit: contain;
+        flex-shrink: 0;
+    }
+
+    .match-header-mode-name {
+        font-size: 0.75rem;
+        color: var(--text-dim);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .match-header-time {
+        font-size: 0.68rem;
+        color: rgba(255,255,255,0.38);
+        white-space: nowrap;
+        font-weight: 600;
+    }
+
+    /* ── Match body: left comp | center map | right comp ── */
+    .match-body {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.6rem;
+    }
+
+    /* ── Composition column: vertical brawler list ── */
+    .match-comp {
+        display: flex;
+        flex-direction: column;
+        gap: 0.32rem;
+        min-width: 0;
+    }
+
+    /* Each brawler row: [icon] [brawler name / player name] */
+    .brawler-row {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        min-width: 0;
+    }
+
+    /* Right side rows: text right-aligned, icon on right */
+    .match-comp.right .brawler-row {
+        flex-direction: row-reverse;
+    }
+
+    .comp-brawler {
+        width: 38px;
+        height: 38px;
+        object-fit: contain;
+        border-radius: 5px;
+        flex-shrink: 0;
+    }
+
+    .brawler-row-info {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        gap: 0.06rem;
+    }
+
+    .match-comp.right .brawler-row-info {
+        align-items: flex-end;
+    }
+
+    .brawler-slot-name {
+        font-size: 0.82rem;
+        font-weight: 800;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 110px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .brawler-slot-player {
+        font-size: 0.72rem;
+        color: rgba(255,255,255,0.5);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 110px;
+        font-weight: 500;
+    }
+
+    /* ── Center map column ── */
+    .match-center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.2rem;
+        flex-shrink: 0;
+        width: 90px;
+    }
+
+    .match-map-img {
+        width: 90px;
+        height: auto;
+        display: block;
+        object-fit: contain;
+        border-radius: 6px;
+        border: 1px solid rgba(255,255,255,0.1);
+        background: rgba(0,0,0,0.4);
+    }
+
+    .match-map-name {
+        font-size: 0.72rem;
+        color: rgba(255,255,255,0.35);
+        white-space: nowrap;
+        text-align: center;
+        max-width: 90px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* mini game indicator strip (dots horizontal) */
+    .game-strip {
+        display: flex;
+        flex-direction: row;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .game-strip-row {
+        display: contents;
+    }
+
+    .game-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .game-dot.win  { background: #10b981; }
+    .game-dot.loss { background: #f87171; }
+
+    /* ── Picks box: two team columns side-by-side ── */
+    .picks-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        height: 100%;
+    }
+
+    .picks-col {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .picks-col:first-child {
+        border-right: 2px solid rgba(255,255,255,0.12);
+    }
+
+    .picks-col-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.7rem;
+        background: var(--dark);
+        border-bottom: 2px solid rgba(255,255,255,0.12);
+        flex-shrink: 0;
+    }
+
+    .picks-col-logo {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+        flex-shrink: 0;
+    }
+
+    .picks-col-name {
+        font-size: 0.78rem;
+        font-weight: 800;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+    }
+
+    /* Brawler card grid — scrollable, 2 per row */
+    .picks-col-body {
+        flex: 1;
+        min-height: 0;
+        padding: 0.3rem;
+        overflow-y: auto;
+    }
+
+    .picks-col-body::-webkit-scrollbar { width: 4px; }
+    .picks-col-body::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+    .picks-col-body::-webkit-scrollbar-thumb { background: rgba(var(--primary-rgb),0.4); border-radius: 2px; }
+
+    .picks-brawler-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.3rem;
+    }
+
+    /* Brawler card — exact copy of team.html .brawler-card, fixed size, clickable */
+    .h2h-brawler-card {
+        background: var(--dark);
+        border-radius: 8px;
+        padding: 0.35rem;
+        border: 1px solid rgba(255,255,255,0.06);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 0.2rem;
+        position: relative;
+        transition: all 0.2s ease;
+        overflow: hidden;
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .h2h-brawler-card:hover {
+        background: rgba(var(--primary-rgb), 0.08);
+        border-color: rgba(var(--primary-rgb), 0.5);
+    }
+
+    .h2h-brawler-rank {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        font-size: 0.55rem;
+        font-weight: 900;
+        color: var(--text-dim);
+        background: rgba(255,255,255,0.06);
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .h2h-brawler-rank.top-1 { background: rgba(255,215,0,0.2); color: #ffd700; }
+    .h2h-brawler-rank.top-2 { background: rgba(192,192,192,0.2); color: #c0c0c0; }
+    .h2h-brawler-rank.top-3 { background: rgba(205,127,50,0.2); color: #cd7f32; }
+
+    .h2h-brawler-img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+    }
+
+    .h2h-brawler-name {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+    }
+
+    .h2h-brawler-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.2rem;
+        width: 100%;
+    }
+
+    .h2h-brawler-mini-stat {
+        background: rgba(255,255,255,0.04);
+        border-radius: 4px;
+        padding: 0.2rem;
+        text-align: center;
+    }
+
+    .h2h-brawler-mini-value {
+        font-size: 0.7rem;
+        font-weight: 800;
+        color: var(--text);
+    }
+
+    .h2h-brawler-mini-label {
+        font-size: 0.45rem;
+        color: var(--text-dim);
+        text-transform: uppercase;
+    }
+
+    /* ── Maps box: 1 per row ── */
+    .maps-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+
+    /* Map row — matches team_mode .map-row exactly, clickable */
+    .h2h-map-row {
+        background: var(--dark);
+        padding: 0.35rem 0.5rem;
+        border-radius: 7px;
+        border: 1px solid rgba(255,255,255,0.06);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.15s ease;
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .h2h-map-row:hover {
+        background: rgba(var(--primary-rgb), 0.1);
+        border-color: rgba(var(--primary-rgb), 0.4);
+    }
+
+
+
+    .h2h-map-img {
+        width: 39px;
+        height: 39px;
+        object-fit: cover;
+        border-radius: 4px;
+        flex-shrink: 0;
+        background: rgba(0,0,0,0.3);
+    }
+
+    .h2h-map-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .h2h-map-name {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .h2h-map-sub {
+        font-size: 0.65rem;
+        color: var(--text-dim);
+        margin-top: 0.03rem;
+    }
+
+    .h2h-map-wr {
+        font-size: 0.88rem;
+        font-weight: 800;
+        flex-shrink: 0;
+    }
+
+    /* ── Win rate colors ── */
+    .wr-s { color: #10b981; }
+    .wr-a { color: #84cc16; }
+    .wr-b { color: #fbbf24; }
+    .wr-c { color: #fb923c; }
+    .wr-d { color: #f87171; }
+    .wr-f { color: #dc2626; }
+
+    .no-data {
+        text-align: center;
+        padding: 1rem 0.5rem;
+        color: var(--text-dim);
+        font-size: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/dashboard">Home</a>
+    <span class="breadcrumb-separator">/</span>
+    <a href="/team/{{ team1 }}">{{ team1 }}</a>
+    <span class="breadcrumb-separator">/</span>
+    <span class="breadcrumb-current">vs {{ team2 }}</span>
+</div>
+
+{% set total   = h2h.get('matches', 0) %}
+{% set wins1   = h2h.get('wins', 0) %}
+{% set losses1 = h2h.get('losses', 0) %}
+{% set wr1     = (wins1 / total * 100) if total > 0 else 0 %}
+{% set wr2     = 100 - wr1 %}
+{% set streak  = h2h.get('streak', 0) %}
+{% set t1_logo = team1.lower().replace(' ','_').replace('-','_') + '.png' %}
+{% set t2_logo = team2.lower().replace(' ','_').replace('-','_') + '.png' %}
+
+<div class="h2h-layout">
+
+    <!-- ══ LEFT COLUMN ══ -->
+    <div class="left-column">
+
+        <!-- Hero card -->
+        <div class="h2h-hero-card">
+            <div class="hero-logos">
+                <a href="/team/{{ team1 }}" style="display:contents;">
+                    <img src="/static/images/teams/{{ t1_logo }}" alt="{{ team1 }}" class="hero-logo"
+                         onerror="this.src='/static/images/teams/default.png'">
+                </a>
+                <span class="hero-vs">VS</span>
+                <a href="/team/{{ team2 }}" style="display:contents;">
+                    <img src="/static/images/teams/{{ t2_logo }}" alt="{{ team2 }}" class="hero-logo"
+                         onerror="this.src='/static/images/teams/default.png'">
+                </a>
+            </div>
+
+            <div class="hero-score">
+                <span class="{% if wr1>=65 %}wr-s{% elif wr1>=57.5 %}wr-a{% elif wr1>=50 %}wr-b{% elif wr1>=42.5 %}wr-c{% elif wr1>=35 %}wr-d{% else %}wr-f{% endif %}">{{ wins1 }}</span>
+                <span class="hero-score-sep">—</span>
+                <span class="{% if wr2>=65 %}wr-s{% elif wr2>=57.5 %}wr-a{% elif wr2>=50 %}wr-b{% elif wr2>=42.5 %}wr-c{% elif wr2>=35 %}wr-d{% else %}wr-f{% endif %}">{{ losses1 }}</span>
+            </div>
+
+            <div class="hero-sub">
+                {{ total }} games
+                {% if streak > 0 %} · <span class="wr-s">{{ team1 }} W{{ streak }}</span>
+                {% elif streak < 0 %} · <span class="wr-f">{{ team2 }} W{{ streak|abs }}</span>{% endif %}
+            </div>
+
+            <div class="overview-stats">
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">{{ team1 }}</div>
+                    {% if wr1>=65 %}<div class="overview-stat-value wr-s">{{ "%.1f"|format(wr1) }}%</div>
+                    {% elif wr1>=57.5 %}<div class="overview-stat-value wr-a">{{ "%.1f"|format(wr1) }}%</div>
+                    {% elif wr1>=50 %}<div class="overview-stat-value wr-b">{{ "%.1f"|format(wr1) }}%</div>
+                    {% elif wr1>=42.5 %}<div class="overview-stat-value wr-c">{{ "%.1f"|format(wr1) }}%</div>
+                    {% elif wr1>=35 %}<div class="overview-stat-value wr-d">{{ "%.1f"|format(wr1) }}%</div>
+                    {% else %}<div class="overview-stat-value wr-f">{{ "%.1f"|format(wr1) }}%</div>{% endif %}
+                </div>
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">{{ team2 }}</div>
+                    {% if wr2>=65 %}<div class="overview-stat-value wr-s">{{ "%.1f"|format(wr2) }}%</div>
+                    {% elif wr2>=57.5 %}<div class="overview-stat-value wr-a">{{ "%.1f"|format(wr2) }}%</div>
+                    {% elif wr2>=50 %}<div class="overview-stat-value wr-b">{{ "%.1f"|format(wr2) }}%</div>
+                    {% elif wr2>=42.5 %}<div class="overview-stat-value wr-c">{{ "%.1f"|format(wr2) }}%</div>
+                    {% elif wr2>=35 %}<div class="overview-stat-value wr-d">{{ "%.1f"|format(wr2) }}%</div>
+                    {% else %}<div class="overview-stat-value wr-f">{{ "%.1f"|format(wr2) }}%</div>{% endif %}
+                </div>
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">Wins</div>
+                    <div class="overview-stat-value wr-s">{{ wins1 }}</div>
+                </div>
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">Losses</div>
+                    <div class="overview-stat-value wr-f">{{ losses1 }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- By Mode breakdown -->
+        <div class="left-card">
+            <div class="left-card-header">By Mode</div>
+            <div class="left-card-body">
+                {% if h2h.modes %}
+                {% set sorted_modes = h2h.modes.items()|sort(attribute='1.wins', reverse=True)|list %}
+                {% for mode_name, mdata in sorted_modes[:6] %}
+                {% set mode_total = mdata.wins + mdata.losses %}
+                {% set mwr = (mdata.wins / mode_total * 100) if mode_total > 0 else 0 %}
+                {% set mode_icon = mode_name.lower().replace(' ','_') + '.png' %}
+                <a href="/team/{{ team1 }}/mode/{{ mode_name }}" class="mode-row">
+                    <img src="/static/images/modes/{{ mode_icon }}" alt="{{ mode_name }}"
+                         class="mode-row-icon" onerror="this.style.display='none'">
+                    <div class="mode-row-name">{{ mode_name }}</div>
+                    <div class="mode-row-score">{{ mdata.wins }}–{{ mdata.losses }}</div>
+                    <div class="mode-row-wr
+                        {% if mwr>=65 %}wr-s{% elif mwr>=57.5 %}wr-a{% elif mwr>=50 %}wr-b{% elif mwr>=42.5 %}wr-c{% elif mwr>=35 %}wr-d{% else %}wr-f{% endif %}">
+                        {{ "%.0f"|format(mwr) }}%
+                    </div>
+                </a>
+                {% endfor %}
+                {% else %}
+                <div class="no-data">No mode data</div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ══ RIGHT COLUMN ══ -->
+    <div class="right-column">
+
+        <!-- Recent matches — scrollable, capped at --modes-h -->
+        <div class="stats-section matches-box">
+            <div class="stats-header">Recent Matches</div>
+            <div class="stats-content">
+                {% if recent_matches %}
+                {% for match in recent_matches %}
+                {% set mode_icon = match.mode.lower().replace(' ','_') + '.png' %}
+                {% set map_img = match.map.lower().replace(' ','_').replace('-','_').replace('.','').replace("'",'').replace('\u2019','') + '.png' if match.map and match.map != 'nan' else '' %}
+
+                <div class="match-card">
+
+                    <!-- Score row: [team1 logo · score] [mode + time] [score · team2 logo] -->
+                    <div class="match-header">
+                        <!-- Team 1: logo on far left, score nearest centre -->
+                        <div class="match-header-team left">
+                            <img src="/static/images/teams/{{ t1_logo }}" alt="{{ team1 }}"
+                                 class="match-header-logo" onerror="this.style.display='none'">
+                            <div class="match-header-team-score {{ 'wr-s' if match.team1_won else 'wr-f' }}">{{ match.score_t1 }}</div>
+                        </div>
+
+                        <!-- Centre: mode icon + name + time -->
+                        <div class="match-header-centre">
+                            <div class="match-header-mode">
+                                <img src="/static/images/modes/{{ mode_icon }}" alt="{{ match.mode }}"
+                                     class="match-header-mode-icon" onerror="this.style.display='none'">
+                                <span class="match-header-mode-name">{{ match.mode }}</span>
+                            </div>
+                            {% if match.time_ago %}
+                            <div class="match-header-time">{{ match.time_ago }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Team 2: score nearest centre, logo on far right (row-reverse) -->
+                        <div class="match-header-team right">
+                            <img src="/static/images/teams/{{ t2_logo }}" alt="{{ team2 }}"
+                                 class="match-header-logo" onerror="this.style.display='none'">
+                            <div class="match-header-team-score {{ 'wr-f' if match.team1_won else 'wr-s' }}">{{ match.score_t2 }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Body: team1 brawlers | map image | team2 brawlers -->
+                    <div class="match-body">
+
+                        <!-- team1 comp -->
+                        <div class="match-comp">
+                            {% for i in range(match.team1_brawlers|length) %}
+                            {% set brawler = match.team1_brawlers[i] %}
+                            {% set player  = match.team1_players[i] if i < match.team1_players|length else '' %}
+                            {% set bimg = brawler.lower().replace(' ','_').replace('-','_').replace('.','').replace("'",'') + '.png' %}
+                            <div class="brawler-row">
+                                <img src="/static/images/brawlers/{{ bimg }}" alt="{{ brawler }}"
+                                     class="comp-brawler" onerror="this.src='/static/images/brawlers/default.png'">
+                                <div class="brawler-row-info">
+                                    <div class="brawler-slot-name">{{ brawler }}</div>
+                                    {% if player %}<div class="brawler-slot-player">{{ player }}</div>{% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- center: map image + map name + per-game strip -->
+                        <div class="match-center">
+                            {% if map_img %}
+                            <img src="/static/images/maps/{{ map_img }}" alt="{{ match.map }}"
+                                 class="match-map-img"
+                                 onerror="this.replaceWith(document.createElement('span'))">
+                            {% endif %}
+                            {% if match.map and match.map != 'nan' %}
+                            <div class="match-map-name">{{ match.map }}</div>
+                            {% endif %}
+                            <div class="game-strip">
+                                {% for g in match.games %}
+                                <div class="game-strip-row">
+                                    <div class="game-dot {{ 'win' if g.team1_won else 'loss' }}"></div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- team2 comp (mirrored) -->
+                        <div class="match-comp right">
+                            {% for i in range(match.team2_brawlers|length) %}
+                            {% set brawler = match.team2_brawlers[i] %}
+                            {% set player  = match.team2_players[i] if i < match.team2_players|length else '' %}
+                            {% set bimg = brawler.lower().replace(' ','_').replace('-','_').replace('.','').replace("'",'') + '.png' %}
+                            <div class="brawler-row">
+                                <img src="/static/images/brawlers/{{ bimg }}" alt="{{ brawler }}"
+                                     class="comp-brawler" onerror="this.src='/static/images/brawlers/default.png'">
+                                <div class="brawler-row-info">
+                                    <div class="brawler-slot-name">{{ brawler }}</div>
+                                    {% if player %}<div class="brawler-slot-player">{{ player }}</div>{% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="no-data">No recent match data available</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Analysis column: picks on top, maps below, both scrollable -->
+        <div class="analysis-column">
+
+            <!-- Most Picked Brawlers — two team columns, brawler cards 2-per-row -->
+            <div class="stats-section picks-box">
+                <div class="stats-header">Most Picked Brawlers</div>
+                <div class="stats-content" style="padding:0; overflow:hidden; display:flex; flex-direction:column; flex:1; min-height:0;">
+                    {% if series_stats and series_stats.total > 0 %}
+                    {% set ss = series_stats %}
+                    <div class="picks-grid" style="flex:1; min-height:0;">
+
+                        <!-- Team 1 column -->
+                        <div class="picks-col">
+                            <div class="picks-col-header">
+                                <img src="/static/images/teams/{{ t1_logo }}" alt="{{ team1 }}"
+                                     class="picks-col-logo" onerror="this.src='/static/images/teams/default.png'">
+                                <span class="picks-col-name">{{ team1 }}</span>
+                            </div>
+                            <div class="picks-col-body">
+                                <div class="picks-brawler-grid">
+                                    {% for bname, bstat in ss.top_brawlers_t1 %}
+                                    {% set bimg = bname.lower().replace(' ','_').replace('-','_').replace('.','').replace("'",'') + '.png' %}
+                                    {% set bwr = (bstat.wins / bstat.picks * 100) if bstat.picks > 0 else 0 %}
+                                    <a href="/team/{{ team1 }}/brawler/{{ bname }}" class="h2h-brawler-card">
+                                        <div class="h2h-brawler-rank {% if loop.index == 1 %}top-1{% elif loop.index == 2 %}top-2{% elif loop.index == 3 %}top-3{% endif %}">{{ loop.index }}</div>
+                                        <img src="/static/images/brawlers/{{ bimg }}" alt="{{ bname }}"
+                                             class="h2h-brawler-img" onerror="this.src='/static/images/brawlers/default.png'">
+                                        <div class="h2h-brawler-name">{{ bname }}</div>
+                                        <div class="h2h-brawler-stats">
+                                            <div class="h2h-brawler-mini-stat">
+                                                <div class="h2h-brawler-mini-value">{{ bstat.picks }}</div>
+                                                <div class="h2h-brawler-mini-label">Picks</div>
+                                            </div>
+                                            <div class="h2h-brawler-mini-stat">
+                                                <div class="h2h-brawler-mini-value {% if bwr>=65 %}wr-s{% elif bwr>=57.5 %}wr-a{% elif bwr>=50 %}wr-b{% elif bwr>=42.5 %}wr-c{% elif bwr>=35 %}wr-d{% else %}wr-f{% endif %}">{{ "%.0f"|format(bwr) }}%</div>
+                                                <div class="h2h-brawler-mini-label">WR</div>
+                                            </div>
+                                        </div>
+                                    </a>
+                                    {% else %}
+                                    <div class="no-data" style="font-size:0.65rem; grid-column:1/-1;">No data</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Team 2 column -->
+                        <div class="picks-col">
+                            <div class="picks-col-header">
+                                <img src="/static/images/teams/{{ t2_logo }}" alt="{{ team2 }}"
+                                     class="picks-col-logo" onerror="this.src='/static/images/teams/default.png'">
+                                <span class="picks-col-name">{{ team2 }}</span>
+                            </div>
+                            <div class="picks-col-body">
+                                <div class="picks-brawler-grid">
+                                    {% for bname, bstat in ss.top_brawlers_t2 %}
+                                    {% set bimg = bname.lower().replace(' ','_').replace('-','_').replace('.','').replace("'",'') + '.png' %}
+                                    {% set bwr = (bstat.wins / bstat.picks * 100) if bstat.picks > 0 else 0 %}
+                                    <a href="/team/{{ team2 }}/brawler/{{ bname }}" class="h2h-brawler-card">
+                                        <div class="h2h-brawler-rank {% if loop.index == 1 %}top-1{% elif loop.index == 2 %}top-2{% elif loop.index == 3 %}top-3{% endif %}">{{ loop.index }}</div>
+                                        <img src="/static/images/brawlers/{{ bimg }}" alt="{{ bname }}"
+                                             class="h2h-brawler-img" onerror="this.src='/static/images/brawlers/default.png'">
+                                        <div class="h2h-brawler-name">{{ bname }}</div>
+                                        <div class="h2h-brawler-stats">
+                                            <div class="h2h-brawler-mini-stat">
+                                                <div class="h2h-brawler-mini-value">{{ bstat.picks }}</div>
+                                                <div class="h2h-brawler-mini-label">Picks</div>
+                                            </div>
+                                            <div class="h2h-brawler-mini-stat">
+                                                <div class="h2h-brawler-mini-value {% if bwr>=65 %}wr-s{% elif bwr>=57.5 %}wr-a{% elif bwr>=50 %}wr-b{% elif bwr>=42.5 %}wr-c{% elif bwr>=35 %}wr-d{% else %}wr-f{% endif %}">{{ "%.0f"|format(bwr) }}%</div>
+                                                <div class="h2h-brawler-mini-label">WR</div>
+                                            </div>
+                                        </div>
+                                    </a>
+                                    {% else %}
+                                    <div class="no-data" style="font-size:0.65rem; grid-column:1/-1;">No data</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    {% else %}
+                    <div class="no-data">No pick data available</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Map Results — 2 per row, same style as team_mode map rows -->
+            <div class="stats-section maps-box">
+                <div class="stats-header">Map Results</div>
+                <div class="stats-content">
+                    {% if series_stats and series_stats.map_records %}
+                    {% set ss = series_stats %}
+                    <div class="maps-grid">
+                        {% for map_name, mrec in ss.map_records %}
+                        {% set map_total = mrec.wins + mrec.losses %}
+                        {% set mwr = (mrec.wins / map_total * 100) if map_total > 0 else 0 %}
+                        {% set map_img = map_name.lower().replace(' ','_').replace('-','_').replace('.','').replace("'",'').replace('\u2019','') + '.png' %}
+                        <a {% if mrec.mode %}href="/team/{{ team1 }}/mode/{{ mrec.mode }}/map/{{ map_name }}"{% endif %} class="h2h-map-row" style="{% if not mrec.mode %}cursor:default;{% endif %}">
+                            <img src="/static/images/maps/{{ map_img }}" alt="{{ map_name }}"
+                                 class="h2h-map-img" onerror="this.style.opacity='0'">
+                            <div class="h2h-map-info">
+                                <div class="h2h-map-name">{{ map_name }}</div>
+                                <div class="h2h-map-sub">{{ mrec.wins }}W · {{ mrec.losses }}L</div>
+                            </div>
+                            <div class="h2h-map-wr {% if mwr>=65 %}wr-s{% elif mwr>=57.5 %}wr-a{% elif mwr>=50 %}wr-b{% elif mwr>=42.5 %}wr-c{% elif mwr>=35 %}wr-d{% else %}wr-f{% endif %}">
+                                {{ "%.0f"|format(mwr) }}%
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="no-data">No map data available</div>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div><!-- /analysis-column -->
+
+    </div><!-- /right-column -->
+
+</div><!-- /h2h-layout -->
+{% endblock %}

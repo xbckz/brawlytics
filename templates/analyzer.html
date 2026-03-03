@@ -1,0 +1,1524 @@
+{% extends "base.html" %}
+{% block title %}Matchup Analyzer - Brawlytics{% endblock %}
+
+{% block extra_styles %}
+<style>
+    html, body { overflow: clip; height: 100vh; }
+    .breadcrumb { margin-bottom: 0.75rem; }
+
+    /* ── Page layout: left sidebar + main area ── */
+    .page-layout {
+        display: grid;
+        grid-template-columns: 230px 1fr;
+        gap: 1rem;
+        height: calc(100vh - 120px);
+        overflow: visible;
+    }
+
+    /* ── Left sidebar ── */
+    .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        overflow-y: auto;
+        overflow-x: clip;
+        padding: 6px;
+    }
+    .sidebar::-webkit-scrollbar { width: 3px; }
+    .sidebar::-webkit-scrollbar-thumb { background: rgba(var(--primary-rgb),0.3); border-radius: 2px; }
+
+    /* Hero card — matches meta/teams style */
+    .hero-card {
+        background: var(--card);
+        border-radius: 16px;
+        border: 2px solid rgba(var(--primary-rgb), 0.3);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+        padding: 1.25rem 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.4rem;
+        text-align: center;
+    }
+    .hero-icon { font-size: 2rem; line-height: 1; }
+    .hero-title {
+        font-size: 1.4rem;
+        font-weight: 900;
+        color: var(--primary);
+        line-height: 1;
+        letter-spacing: -0.5px;
+    }
+    .hero-sub {
+        font-size: 0.68rem;
+        color: var(--text-dim);
+        line-height: 1.4;
+    }
+
+    /* Filter card */
+    .filter-card {
+        background: var(--card);
+        border-radius: 16px;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        overflow: clip;
+        flex-shrink: 0;
+        transition: all 0.2s ease;
+    }
+    .filter-card:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+    .filter-header {
+        background: var(--dark);
+        padding: 0.5rem 0.9rem;
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+        color: var(--text);
+    }
+    .filter-body { padding: 0.6rem; display: flex; flex-direction: column; gap: 0.4rem; }
+
+    .filter-label {
+        font-size: 0.6rem;
+        font-weight: 700;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding-left: 0.1rem;
+    }
+
+    /* Mode buttons — stacked vertically with icon */
+    .mode-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .mode-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.55rem;
+        border-radius: 8px;
+        cursor: pointer;
+        background: var(--dark);
+        border: 1px solid rgba(255,255,255,0.06);
+        color: var(--text-dim);
+        font-size: 0.68rem;
+        font-weight: 600;
+        transition: all 0.15s;
+        text-align: left;
+    }
+    .mode-btn:hover { background: rgba(var(--primary-rgb),0.1); color: var(--text); border-color: rgba(var(--primary-rgb),0.25); }
+    .mode-btn.active { background: rgba(var(--primary-rgb),0.18); color: var(--primary); border-color: rgba(var(--primary-rgb),0.5); }
+    .mode-btn img { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; }
+    .mode-btn .mode-check { margin-left: auto; font-size: 0.65rem; opacity: 0; transition: opacity 0.15s; }
+    .mode-btn.active .mode-check { opacity: 1; }
+
+    /* Map buttons — shown below mode list when mode selected */
+    .map-list {
+        display: none;
+        flex-direction: column;
+        gap: 0.2rem;
+        margin-top: 0.15rem;
+    }
+    .map-list.visible { display: flex; }
+    .map-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.28rem 0.55rem;
+        border-radius: 7px;
+        cursor: pointer;
+        background: rgba(0,0,0,0.2);
+        border: 1px solid rgba(255,255,255,0.05);
+        color: var(--text-dim);
+        font-size: 0.63rem;
+        font-weight: 500;
+        transition: all 0.15s;
+    }
+    .map-btn:hover { background: rgba(var(--primary-rgb),0.08); color: var(--text); }
+    .map-btn.active { background: rgba(var(--primary-rgb),0.15); color: var(--primary); border-color: rgba(var(--primary-rgb),0.4); }
+    .map-btn img { width: 32px; height: 20px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+    .map-btn .map-check { margin-left: auto; font-size: 0.6rem; opacity: 0; }
+    .map-btn.active .map-check { opacity: 1; }
+
+    .filter-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0.15rem 0; }
+
+    .filter-reset {
+        width: 100%;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 6px;
+        color: var(--text-dim);
+        font-size: 0.65rem;
+        padding: 0.3rem;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .filter-reset:hover { background: rgba(var(--primary-rgb),0.1); color: var(--primary); border-color: rgba(var(--primary-rgb),0.3); }
+
+    /* ── Time range buttons ── */
+    .time-range-list { display: flex; flex-direction: column; gap: 0.25rem; }
+    .time-range-btn {
+        display: flex; align-items: center; gap: 0.45rem;
+        padding: 0.32rem 0.55rem; border-radius: 8px; cursor: pointer;
+        background: var(--dark); border: 1px solid rgba(255,255,255,0.06);
+        color: var(--text-dim); font-size: 0.68rem; font-weight: 600;
+        transition: all 0.15s; text-align: left;
+    }
+    .time-range-btn:hover { background: rgba(var(--primary-rgb),0.1); color: var(--text); border-color: rgba(var(--primary-rgb),0.25); }
+    .time-range-btn.active { background: rgba(var(--primary-rgb),0.18); color: var(--primary); border-color: rgba(var(--primary-rgb),0.5); }
+    .time-range-btn .tr-icon { font-size: 0.85rem; flex-shrink: 0; }
+
+    /* Custom date popup — floats over layout, doesn't push sidebar */
+    .time-range-card-wrap { position: relative; }
+    .custom-date-popup {
+        display: none;
+        position: absolute;
+        left: 0; right: 0;
+        top: calc(100% + 4px);
+        z-index: 200;
+        background: var(--card);
+        border: 2px solid rgba(var(--primary-rgb), 0.4);
+        border-radius: 12px;
+        padding: 0.75rem;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        flex-direction: column;
+        gap: 0.55rem;
+    }
+    .custom-date-popup.visible { display: flex; }
+    .custom-date-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+    }
+    .custom-date-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+    .custom-date-group label {
+        font-size: 0.65rem; font-weight: 700; color: var(--text);
+        text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .custom-date-group input[type="date"] {
+        width: 100%; padding: 0.5rem 0.6rem;
+        background: var(--dark);
+        border: 2px solid rgba(255,255,255,0.08);
+        border-radius: 8px; color: var(--text); font-size: 0.8rem;
+        outline: none; cursor: pointer; transition: border-color 0.15s;
+        box-sizing: border-box;
+        color-scheme: dark;  /* makes native calendar icon visible on dark bg */
+    }
+    .custom-date-group input[type="date"]:focus {
+        border-color: rgba(var(--primary-rgb),0.6);
+        box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12);
+    }
+    .custom-date-group input[type="date"]:hover {
+        border-color: rgba(var(--primary-rgb),0.35);
+    }
+    .custom-date-confirm {
+        width: 100%; padding: 0.45rem;
+        background: var(--primary); border: none;
+        border-radius: 8px; color: white; font-size: 0.72rem; font-weight: 700;
+        cursor: pointer; transition: all 0.15s;
+        text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .custom-date-confirm:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    .active-filter-badge {
+        background: rgba(var(--primary-rgb),0.15);
+        border: 1px solid rgba(var(--primary-rgb),0.35);
+        border-radius: 6px;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.62rem;
+        color: var(--primary);
+        font-weight: 700;
+        text-align: center;
+        display: none;
+    }
+
+    /* ── Main area ── */
+    .main-area {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        overflow-y: auto;
+        overflow-x: clip;
+        padding: 6px;
+    }
+    .main-area::-webkit-scrollbar { width: 3px; }
+    .main-area::-webkit-scrollbar-thumb { background: rgba(var(--primary-rgb),0.3); border-radius: 2px; }
+
+    /* ── Comp panels row ── */
+    .comps-row {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 0.75rem;
+        align-items: stretch;
+        flex-shrink: 0;
+        overflow: visible;
+    }
+
+    .team-panel {
+        background: var(--card);
+        border-radius: 16px;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        display: flex;
+        flex-direction: column;
+        overflow: clip;
+        transition: all 0.2s ease;
+    }
+    .team-panel:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+    .panel-header {
+        background: var(--dark);
+        padding: 0.5rem 0.85rem;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .panel-label { flex: 1; display: flex; align-items: center; gap: 0.45rem; }
+    .panel-team-logo { width: 30px; height: 30px; object-fit: contain; flex-shrink: 0; opacity: 0.85; }
+    .panel-clear {
+        background: rgba(255,255,255,0.05);
+        border: none;
+        color: var(--text-dim);
+        padding: 0.18rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.6rem;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .panel-clear:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+    .panel-body { padding: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
+
+    /* ── Brawler slots ── */
+    .slots-row {
+        display: grid;
+        grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);
+        gap: 0.4rem;
+    }
+    .brawler-slot {
+        background: var(--dark);
+        border-radius: 10px;
+        border: 2px dashed rgba(var(--primary-rgb), 0.25);
+        aspect-ratio: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s;
+        position: relative;
+        gap: 0.25rem;
+        padding: 0.4rem;
+        min-width: 0;
+        overflow: hidden;
+    }
+    .brawler-slot:hover { border-color: rgba(var(--primary-rgb),0.6); background: rgba(var(--primary-rgb),0.08); }
+    .brawler-slot.filled { border-style: solid; border-color: rgba(var(--primary-rgb),0.4); }
+    .brawler-slot.selected-slot { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(var(--primary-rgb),0.3); }
+    .slot-img { width: 80%; height: 80%; max-width: 104px; max-height: 104px; object-fit: contain; }
+    .slot-name { font-size: 0.72rem; font-weight: 700; color: var(--text); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .slot-empty-icon { font-size: 1.4rem; color: rgba(var(--primary-rgb),0.3); }
+    .slot-remove {
+        position: absolute; top: 3px; right: 3px;
+        width: 14px; height: 14px; border-radius: 50%;
+        background: rgba(220,38,38,0.75); color: white; font-size: 0.55rem;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; opacity: 0; transition: opacity 0.15s;
+    }
+    .brawler-slot.filled:hover .slot-remove { opacity: 1; }
+
+    /* ── Picker ── */
+    .picker-section { background: var(--bg); border-radius: 8px; overflow: hidden; }
+    .picker-search {
+        width: 100%; padding: 0.38rem 0.6rem;
+        background: var(--dark); border: none;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        color: var(--text); font-size: 0.72rem; outline: none;
+    }
+    .picker-search::placeholder { color: var(--text-dim); }
+    .picker-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+        gap: 0.2rem; padding: 0.3rem;
+        max-height: 150px; overflow-y: auto;
+    }
+    .picker-grid::-webkit-scrollbar { width: 3px; }
+    .picker-grid::-webkit-scrollbar-thumb { background: rgba(var(--primary-rgb),0.35); border-radius: 2px; }
+    .picker-brawler {
+        display: flex; flex-direction: column; align-items: center; gap: 0.08rem;
+        padding: 0.22rem 0.12rem; border-radius: 6px; cursor: pointer;
+        transition: all 0.12s; border: 1px solid transparent;
+    }
+    .picker-brawler:hover { background: rgba(var(--primary-rgb),0.12); border-color: rgba(var(--primary-rgb),0.3); }
+    .picker-brawler.in-use { opacity: 0.28; pointer-events: none; }
+    .picker-brawler img { width: 39px; height: 39px; object-fit: contain; }
+    .picker-brawler-name { font-size: 0.5rem; font-weight: 600; color: var(--text-dim); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52px; }
+
+    /* ── VS / result column ── */
+    .vs-column { display: flex; flex-direction: column; align-items: center; gap: 0.45rem; padding-top: 0; width: 185px; height: 100%; }
+    .vs-label { font-size: 1.6rem; font-weight: 900; color: var(--primary); }
+
+    .result-box {
+        background: var(--card);
+        border-radius: 16px;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        padding: 0.85rem 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        width: 100%;
+        position: relative;
+    }
+    .result-title {
+        font-size: 0.62rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 1px; color: var(--text-dim); text-align: center;
+    }
+    /* placeholder overlays the content so box size never changes */
+    .result-placeholder {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.82rem; color: var(--text-dim);
+        background: var(--card); border-radius: 14px;
+        text-align: center; padding: 0.75rem;
+        opacity: 1; transition: opacity 0.2s;
+        pointer-events: none;
+    }
+    .result-placeholder.hidden { opacity: 0; }
+
+    /* Score display — no progress bar */
+    .result-scores {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .result-score-block { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; }
+    .result-score-label { font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .result-score-val { font-size: 1.5rem; font-weight: 900; line-height: 1; }
+    .score-a { color: #3b82f6; }
+    .score-b { color: #ef4444; }
+    .result-score-sep { font-size: 0.7rem; color: var(--text-dim); font-weight: 700; }
+
+    .result-verdict {
+        text-align: center; font-size: 0.65rem; font-weight: 700;
+        color: var(--text-dim); background: var(--dark);
+        border-radius: 8px; padding: 0.32rem 0.5rem;
+    }
+    .result-verdict span { color: var(--text); }
+    .result-note { text-align: center; font-size: 0.68rem; color: var(--text-dim); }
+
+    /* ── Recent match box ── */
+    .recent-match-box {
+        background: var(--card);
+        border-radius: 16px;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        overflow: clip;
+        width: 100%;
+        flex: 1 1 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    .recent-match-header {
+        background: var(--dark);
+        padding: 0.4rem 0.75rem;
+        font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;
+        border-bottom: 2px solid rgba(var(--primary-rgb),0.4); color: var(--text);
+        flex-shrink: 0;
+    }
+    .recent-match-body { padding: 0.4rem; flex: 1; display: flex; flex-direction: column; }
+    .recent-match-empty { font-size: 0.9rem; color: var(--text-dim); text-align: center; padding: 0.5rem 0; }
+
+    /* ── mini match-card (mirrors team_h2h match-card style) ── */
+    .rm-card {
+        background: var(--dark);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.07);
+        overflow: hidden;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    /* header: [logo W/L] [mode+time] [W/L logo] */
+    .rm-header {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.3rem 0.45rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .rm-header-team { display: flex; align-items: center; gap: 0.28rem; }
+    .rm-header-team.left  { flex-direction: row; }
+    .rm-header-team.right { flex-direction: row-reverse; }
+    .rm-header-logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+    .rm-header-result {
+        font-size: 0.72rem; font-weight: 900; letter-spacing: 0.5px; flex-shrink: 0; line-height: 1;
+    }
+    .rm-header-centre {
+        display: flex; flex-direction: column; align-items: center; gap: 0.03rem;
+    }
+    .rm-header-mode { display: flex; align-items: center; gap: 0.2rem; }
+    .rm-header-mode-icon { width: 14px; height: 14px; object-fit: contain; flex-shrink: 0; }
+    .rm-header-mode-name { font-size: 0.58rem; color: var(--text-dim); font-weight: 700; white-space: nowrap; }
+    .rm-header-time { font-size: 0.52rem; color: rgba(255,255,255,0.35); white-space: nowrap; font-weight: 600; }
+
+    /* body: [left comp] [map center] [right comp] */
+    .rm-body {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.45rem;
+        flex: 1;
+    }
+    /* rm-comp: row of game columns, each column = one game's 3 brawlers stacked */
+    .rm-comp { display: flex; flex-direction: row; gap: 0.2rem; align-items: center; justify-content: center; min-width: 0; }
+    .rm-game-col { display: flex; flex-direction: column; gap: 0.15rem; align-items: center; }
+    .rm-brawler-icon { width: 30px; height: 30px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
+    .rm-center {
+        display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+        flex-shrink: 0; width: 52px;
+    }
+    .rm-map-img {
+        width: 52px; height: auto; display: block; object-fit: contain;
+        border-radius: 5px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4);
+    }
+    .rm-map-name {
+        font-size: 0.5rem; color: rgba(255,255,255,0.35); white-space: nowrap;
+        text-align: center; max-width: 52px; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* win colours reused */
+    .rm-win  { color: #10b981; }
+    .rm-loss { color: #f87171; }
+
+    /* ── Breakdown ── */
+    .breakdown-section {
+        background: var(--card);
+        border-radius: 16px;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        overflow: clip;
+        flex-shrink: 0;
+        transition: all 0.2s ease;
+    }
+    .breakdown-section:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+    .breakdown-header {
+        background: var(--dark);
+        padding: 0.45rem 0.85rem;
+        font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;
+        border-bottom: 2px solid rgba(var(--primary-rgb),0.4); color: var(--text);
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .breakdown-tabs { display: flex; gap: 0.35rem; }
+    .breakdown-tab {
+        font-size: 0.6rem; font-weight: 700; padding: 0.18rem 0.55rem;
+        border-radius: 4px; cursor: pointer; background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.08); color: var(--text-dim); transition: all 0.15s;
+    }
+    .breakdown-tab.active { background: var(--primary); border-color: var(--primary); color: white; }
+    .breakdown-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 0.4rem; padding: 0.55rem; }
+    .matchup-cell {
+        background: var(--dark); border-radius: 8px; padding: 0.5rem;
+        display: flex; align-items: center; gap: 0.4rem;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+    .matchup-cell img { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
+    .matchup-cell-info { flex: 1; min-width: 0; }
+    .matchup-cell-names { font-size: 0.58rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+    .matchup-cell-wr { font-size: 0.75rem; font-weight: 800; }
+    .matchup-cell-picks { font-size: 0.5rem; color: var(--text-dim); }
+
+    .wr-s { color: #10b981; }
+    .wr-a { color: #84cc16; }
+    .wr-b { color: #fbbf24; }
+    .wr-c { color: #fb923c; }
+    .wr-d { color: #f87171; }
+    .wr-f { color: #dc2626; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/dashboard">Home</a>
+    <span class="breadcrumb-separator"> / </span>
+    <span class="breadcrumb-current">Matchup Analyzer</span>
+</div>
+
+<div class="page-layout">
+
+    <!-- ══ LEFT SIDEBAR ══ -->
+    <div class="sidebar">
+
+        <div class="hero-card">
+            
+            <div class="hero-title">Analyzer</div>
+            <div class="hero-sub">Build two 3-brawler comps and get a data-driven win prediction</div>
+        </div>
+
+        <!-- Time range card -->
+        <div class="time-range-card-wrap">
+            <div class="filter-card">
+                <div class="filter-header">Time Range</div>
+                <div class="filter-body">
+                    <div class="time-range-list">
+                        <div class="time-range-btn" id="tr-all" onclick="setTimeRange('all')">
+                            <span class="tr-icon">∞</span><span>All time</span>
+                        </div>
+                        <div class="time-range-btn" id="tr-30d" onclick="setTimeRange('30d')">
+                            <span class="tr-icon">📅</span><span>Last 30 days</span>
+                        </div>
+                        <div class="time-range-btn" id="tr-custom" onclick="toggleCustomDate()">
+                            <span class="tr-icon">✏️</span><span>Custom</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Floating custom date picker — appears below card, doesn't push layout -->
+            <div class="custom-date-popup" id="custom-date-popup">
+                <div class="custom-date-row">
+                    <div class="custom-date-group">
+                        <label>Start date</label>
+                        <input type="date" id="custom-start" value="{{ saved_start }}">
+                    </div>
+                    <div class="custom-date-group">
+                        <label>End date</label>
+                        <input type="date" id="custom-end" value="{{ saved_end }}">
+                    </div>
+                </div>
+                <button class="custom-date-confirm" onclick="applyCustomRange()">Save</button>
+            </div>
+        </div>
+
+        <!-- Mode / Map filter card -->
+        <div class="filter-card">
+            <div class="filter-header" id="filter-card-header">Mode Filter</div>
+            <div class="filter-body">
+                <div class="active-filter-badge" id="active-filter-badge">Filtered</div>
+                <!-- Mode list — hidden when a mode is selected -->
+                <div class="mode-list" id="mode-list">
+                    {% for mode in maps_by_mode.keys()|sort %}
+                    <div class="mode-btn" data-mode="{{ mode }}" onclick="selectMode('{{ mode }}')">
+                        <img src="/static/images/modes/{{ mode.lower().replace(' ','_') }}.png"
+                             onerror="this.style.display='none'" alt="{{ mode }}">
+                        <span>{{ mode }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Map list — shown when a mode is selected, replaces mode list -->
+                <div class="map-list" id="map-list">
+                    <div class="filter-divider"></div>
+                    <div class="filter-label" style="margin-top:0.1rem;">Map</div>
+                    <!-- populated by JS -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ══ MAIN AREA ══ -->
+    <div class="main-area">
+
+        <!-- Comps + VS -->
+        <div class="comps-row">
+
+            <!-- COMP A -->
+            <div class="team-panel">
+                <div class="panel-header">
+                    <span class="panel-label" style="color:#3b82f6;">
+                        <img src="/static/images/teams/default.png" class="panel-team-logo" alt="">
+                        Blue Team
+                    </span>
+                    <button class="panel-clear" onclick="clearComp('a')">Clear</button>
+                </div>
+                <div class="panel-body">
+                    <div class="slots-row">
+                        <div class="brawler-slot" id="slot-a-0" onclick="selectSlot('a',0)"><span class="slot-empty-icon">+</span></div>
+                        <div class="brawler-slot" id="slot-a-1" onclick="selectSlot('a',1)"><span class="slot-empty-icon">+</span></div>
+                        <div class="brawler-slot" id="slot-a-2" onclick="selectSlot('a',2)"><span class="slot-empty-icon">+</span></div>
+                    </div>
+                    <div class="picker-section">
+                        <input type="text" class="picker-search" id="search-a" placeholder="Search brawler..." oninput="filterPicker('a')">
+                        <div class="picker-grid" id="picker-a"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VS / RESULT -->
+            <div class="vs-column">
+                <div class="vs-label">VS</div>
+                <div class="result-box">
+                    <div class="result-title">Win Probability</div>
+                    <div style="display:flex; flex-direction:column; gap:0.6rem;">
+                        <div class="result-scores">
+                            <div class="result-score-block">
+                                <div class="result-score-label score-a">Blue</div>
+                                <div class="result-score-val score-a" id="pct-a">—</div>
+                            </div>
+                            <div class="result-score-block">
+                                <div class="result-score-label score-b">Red</div>
+                                <div class="result-score-val score-b" id="pct-b">—</div>
+                            </div>
+                        </div>
+                        <div class="result-verdict" id="verdict" style="min-height:1.6em;">&nbsp;</div>
+                        <div class="result-note" id="coverage-note"></div>
+                    </div>
+                    <div class="result-placeholder" id="result-placeholder">Loading data…</div>
+                </div>
+                <!-- Recent Match — same width, stacks below result box -->
+                <div class="recent-match-box" id="recent-match-box" style="display:none;">
+                    <div class="recent-match-header">Real Match</div>
+                    <div class="recent-match-body" id="recent-match-body"></div>
+                </div>
+            </div>
+
+            <!-- COMP B -->
+            <div class="team-panel">
+                <div class="panel-header">
+                    <button class="panel-clear" onclick="clearComp('b')">Clear</button>
+                    <span class="panel-label" style="color:#ef4444; justify-content:flex-end;">
+                        Red Team
+                        <img src="/static/images/teams/default.png" class="panel-team-logo" alt="" style="filter: hue-rotate(330deg) saturate(1.5);">
+                    </span>
+                </div>
+                <div class="panel-body">
+                    <div class="slots-row">
+                        <div class="brawler-slot" id="slot-b-0" onclick="selectSlot('b',0)"><span class="slot-empty-icon">+</span></div>
+                        <div class="brawler-slot" id="slot-b-1" onclick="selectSlot('b',1)"><span class="slot-empty-icon">+</span></div>
+                        <div class="brawler-slot" id="slot-b-2" onclick="selectSlot('b',2)"><span class="slot-empty-icon">+</span></div>
+                    </div>
+                    <div class="picker-section">
+                        <input type="text" class="picker-search" id="search-b" placeholder="Search brawler..." oninput="filterPicker('b')">
+                        <div class="picker-grid" id="picker-b"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Breakdown -->
+        <div class="breakdown-section" id="breakdown-section" style="display:none;">
+            <div class="breakdown-header">
+                <span>Breakdown</span>
+                <div class="breakdown-tabs">
+                    <div class="breakdown-tab active" id="tab-matchups" onclick="showTab('matchups')">Matchups</div>
+                    <div class="breakdown-tab" id="tab-combos" onclick="showTab('combos')">Synergies</div>
+                    <div class="breakdown-tab" id="tab-meta" onclick="showTab('meta')">Meta</div>
+                </div>
+            </div>
+            <div class="breakdown-grid" id="breakdown-grid"></div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+const ALL_BRAWLERS   = {{ all_brawlers | tojson }};
+const META_OVERALL   = {{ meta_scores  | tojson }};
+const MODE_META      = {{ mode_meta    | tojson }};
+const MAP_META       = {{ map_meta     | tojson }};
+const MAPS_BY_MODE   = {{ maps_by_mode | tojson }};
+
+// Heavy data — loaded async after page render
+let SYNERGY       = {};
+let TEAMMATE      = {};
+let MATCH_RECORDS = [];
+let _dataLoaded   = false;
+
+fetch('/api/analyzer-data')
+    .then(r => r.json())
+    .then(d => {
+        SYNERGY       = d.synergy  || {};
+        TEAMMATE      = d.teammate || {};
+        MATCH_RECORDS = d.records  || [];
+        _dataLoaded   = true;
+        // Update placeholder now that data is ready
+        const ph = document.getElementById('result-placeholder');
+        if (ph) ph.textContent = 'Add brawlers to both sides';
+        // Recalculate now that we have full data
+        calculate();
+    })
+    .catch(e => {
+        console.error('Failed to load analyzer data:', e);
+        const ph = document.getElementById('result-placeholder');
+        if (ph) ph.textContent = 'Add brawlers to both sides';
+    });
+
+// ── State ──
+const comps = { a: [null, null, null], b: [null, null, null] };
+let activeSlot = { team: 'a', idx: 0 };
+let activeTab = 'matchups';
+let selectedMode = '';
+let selectedMap  = '';
+
+// ── Time range state — stored in localStorage, never touches global settings ──
+let activeDateRange = localStorage.getItem('analyzer_date_range') || '30d';
+let customStartDate = localStorage.getItem('analyzer_start_date') || '';
+let customEndDate   = localStorage.getItem('analyzer_end_date')   || '';
+
+function updateTimeRangeUI() {
+    document.querySelectorAll('.time-range-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById('tr-' + activeDateRange);
+    if (btn) btn.classList.add('active');
+}
+
+function filteredMatchRecords() {
+    if (activeDateRange === 'all') return MATCH_RECORDS;
+    const now = Date.now();
+    if (activeDateRange === '30d') {
+        const cutoff = now - 30 * 24 * 3600 * 1000;
+        return MATCH_RECORDS.filter(m => {
+            const bt = m.battle_time || m.date || '';
+            const ms = parseBattleTimeMs(bt);
+            if (ms === null) return false;  // no parseable date → exclude from filtered view
+            return ms >= cutoff;
+        });
+    }
+    if (activeDateRange === 'custom') {
+        const start = customStartDate ? new Date(customStartDate + 'T00:00:00Z').getTime() : null;
+        const end   = customEndDate   ? new Date(customEndDate   + 'T23:59:59Z').getTime() : null;
+        return MATCH_RECORDS.filter(m => {
+            const bt = m.battle_time || m.date || '';
+            const ms = parseBattleTimeMs(bt);
+            if (ms === null) return false;  // no parseable date → exclude
+            if (start && ms < start) return false;
+            if (end   && ms > end)   return false;
+            return true;
+        });
+    }
+    return MATCH_RECORDS;
+}
+
+function parseBattleTimeMs(bt) {
+    // Handles "20260212T085117.000Z", ISO strings, and "YYYY-MM-DD" date strings
+    if (!bt || bt === 'nan' || bt === 'None') return null;
+    try {
+        if (/^\d{8}T/.test(bt)) {
+            // compact: YYYYMMDDTHHmmss.sssZ
+            const s = bt.replace(/\.\d+Z?$/, '');
+            const y=s.slice(0,4), mo=s.slice(4,6), d=s.slice(6,8);
+            const h=s.slice(9,11)||'00', mi=s.slice(11,13)||'00', sc=s.slice(13,15)||'00';
+            const ms = new Date(`${y}-${mo}-${d}T${h}:${mi}:${sc}Z`).getTime();
+            return isNaN(ms) ? null : ms;
+        }
+        // YYYY-MM-DD date-only string → parse as UTC midnight
+        if (/^\d{4}-\d{2}-\d{2}$/.test(bt)) {
+            const ms = new Date(bt + 'T00:00:00Z').getTime();
+            return isNaN(ms) ? null : ms;
+        }
+        const ms = new Date(bt).getTime();
+        return isNaN(ms) ? null : ms;
+    } catch(e) { return null; }
+}
+
+// ── Filter ──
+function selectMode(mode) {
+    if (selectedMode === mode) {
+        // Toggle off
+        selectedMode = '';
+        selectedMap  = '';
+    } else {
+        selectedMode = mode;
+        selectedMap  = '';
+    }
+    renderModeButtons();
+    renderMapList();
+    updateFilterBadge();
+    calculate();
+}
+
+function selectMap(map) {
+    selectedMap = (selectedMap === map) ? '' : map;
+    renderMapButtons();
+    updateFilterBadge();
+    calculate();
+}
+
+function resetFilter() {
+    selectedMode = '';
+    selectedMap  = '';
+    renderModeButtons();
+    renderMapList();
+    updateFilterBadge();
+    calculate();
+}
+
+function renderModeButtons() {
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === selectedMode);
+    });
+}
+
+function renderMapList() {
+    const modeList = document.getElementById('mode-list');
+    const mapList  = document.getElementById('map-list');
+    const header   = document.getElementById('filter-card-header');
+
+    if (!selectedMode || !MAPS_BY_MODE[selectedMode] || MAPS_BY_MODE[selectedMode].length === 0) {
+        // No mode selected — show modes, hide maps
+        modeList.style.display = '';
+        mapList.classList.remove('visible');
+        mapList.innerHTML = '<div class="filter-divider"></div><div class="filter-label" style="margin-top:0.1rem;">Map</div>';
+        if (header) header.textContent = 'Mode Filter';
+        return;
+    }
+
+    // Mode selected — hide mode list, show only map list
+    modeList.style.display = 'none';
+    mapList.classList.add('visible');
+    if (header) header.textContent = selectedMode;
+
+    let html = `<div class="map-btn" style="background:rgba(var(--primary-rgb),0.08);border-color:rgba(var(--primary-rgb),0.3);" onclick="selectMode('${selectedMode}')">
+        <img src="/static/images/modes/${selectedMode.toLowerCase().replace(/ /g,'_')}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;">
+        <span style="flex:1;color:var(--primary);font-size:0.63rem;font-weight:700;">${selectedMode}</span>
+        <span style="font-size:0.6rem;color:var(--text-dim);">✕ back</span>
+    </div>`;
+    MAPS_BY_MODE[selectedMode].forEach(map => {
+        const img = map.toLowerCase().replace(/ /g,'_').replace(/-/g,'_').replace(/'/g,'') + '.png';
+        const active = map === selectedMap ? 'active' : '';
+        html += `<div class="map-btn ${active}" onclick="selectMap('${map.replace(/'/g,"\\'")}')">
+            <img src="/static/images/maps/${img}" onerror="this.style.display='none'" alt="${map}">
+            <span>${map}</span>
+        </div>`;
+    });
+    mapList.innerHTML = html;
+}
+
+function setTimeRange(range) {
+    activeDateRange = range;
+    localStorage.setItem('analyzer_date_range', range);
+    updateTimeRangeUI();
+    if (_dataLoaded) calculate();
+}
+
+function toggleCustomDate() {
+    activeDateRange = 'custom';
+    const box = document.getElementById('custom-date-popup');
+    box.classList.add('visible');  // always open panel when custom clicked
+    updateTimeRangeUI();
+    if (_dataLoaded) calculate();
+}
+
+function applyCustomRange() {
+    const start = document.getElementById('custom-start').value;
+    const end   = document.getElementById('custom-end').value;
+    if (!start && !end) { alert('Please pick at least one date.'); return; }
+    customStartDate = start;
+    customEndDate   = end;
+    activeDateRange = 'custom';
+    localStorage.setItem('analyzer_date_range', 'custom');
+    localStorage.setItem('analyzer_start_date', start);
+    localStorage.setItem('analyzer_end_date',   end);
+    // Close the popup
+    document.getElementById('custom-date-popup').classList.remove('visible');
+    updateTimeRangeUI();
+    if (_dataLoaded) calculate();
+}
+
+function renderMapButtons() {
+    document.querySelectorAll('.map-btn').forEach(btn => {
+        const isActive = btn.querySelector('span:not(.map-check)')?.textContent.trim() === selectedMap;
+        btn.classList.toggle('active', isActive);
+        const check = btn.querySelector('.map-check');
+        if (check) check.style.opacity = isActive ? '1' : '0';
+    });
+}
+
+function updateFilterBadge() {
+    const badge = document.getElementById('active-filter-badge');
+    if (selectedMap) {
+        badge.style.display = '';
+        badge.textContent = selectedMap;
+    } else if (selectedMode) {
+        badge.style.display = '';
+        badge.textContent = selectedMode;
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function getActiveMeta() {
+    if (selectedMap && MAP_META[selectedMap])   return MAP_META[selectedMap];
+    if (selectedMode && MODE_META[selectedMode]) return MODE_META[selectedMode];
+    return META_OVERALL;
+}
+
+// ── Picker ──
+function brawlerImg(name) {
+    return '/static/images/brawlers/' + name.toLowerCase().replace(/ /g,'_').replace(/-/g,'_') + '.png';
+}
+
+function initPicker(team) {
+    const grid = document.getElementById(`picker-${team}`);
+    grid.innerHTML = '';
+    ALL_BRAWLERS.forEach(name => {
+        const el = document.createElement('div');
+        el.className = 'picker-brawler';
+        el.dataset.name = name.toLowerCase();
+        el.dataset.brawler = name;
+        el.innerHTML = `<img src="${brawlerImg(name)}" alt="${name}" onerror="this.style.display='none'">
+            <div class="picker-brawler-name">${name}</div>`;
+        el.onclick = () => pickBrawler(team, name);
+        grid.appendChild(el);
+    });
+    refreshPickerState(team);
+}
+
+function filterPicker(team) {
+    const q = document.getElementById(`search-${team}`).value.toLowerCase();
+    document.querySelectorAll(`#picker-${team} .picker-brawler`).forEach(el => {
+        el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+    });
+}
+
+function refreshPickerState(team) {
+    const allUsed = [...comps.a, ...comps.b].filter(Boolean);
+    document.querySelectorAll(`#picker-${team} .picker-brawler`).forEach(el => {
+        el.classList.toggle('in-use', allUsed.includes(el.dataset.brawler));
+    });
+}
+
+// ── Slot interaction ──
+function selectSlot(team, idx) {
+    document.querySelectorAll('.brawler-slot').forEach(s => s.classList.remove('selected-slot'));
+    activeSlot = { team, idx };
+    document.getElementById(`slot-${team}-${idx}`).classList.add('selected-slot');
+}
+
+function pickBrawler(team, name) {
+    let idx = activeSlot.team === team ? activeSlot.idx : comps[team].findIndex(b => b === null);
+    if (idx === -1) idx = 0;
+    comps[team][idx] = name;
+    renderSlots(team);
+    refreshPickerState('a');
+    refreshPickerState('b');
+    // clear search input after picking
+    const searchEl = document.getElementById(`search-${team}`);
+    if (searchEl) { searchEl.value = ''; filterPicker(team); }
+    calculate();
+    const next = comps[team].findIndex((b, i) => b === null && i > idx);
+    if (next !== -1) selectSlot(team, next);
+}
+
+function removeFromSlot(team, idx, e) {
+    e.stopPropagation();
+    comps[team][idx] = null;
+    renderSlots(team);
+    refreshPickerState('a');
+    refreshPickerState('b');
+    calculate();
+    selectSlot(team, idx);
+}
+
+function clearComp(team) {
+    comps[team] = [null, null, null];
+    renderSlots(team);
+    refreshPickerState('a');
+    refreshPickerState('b');
+    calculate();
+}
+
+function renderSlots(team) {
+    for (let i = 0; i < 3; i++) {
+        const slot = document.getElementById(`slot-${team}-${i}`);
+        const brawler = comps[team][i];
+        if (brawler) {
+            slot.className = 'brawler-slot filled';
+            slot.innerHTML = `<div class="slot-remove" onclick="removeFromSlot('${team}',${i},event)">✕</div>
+                <img src="${brawlerImg(brawler)}" class="slot-img" alt="${brawler}" onerror="this.style.display='none'">
+                <div class="slot-name">${brawler}</div>`;
+            slot.onclick = () => selectSlot(team, i);
+        } else {
+            slot.className = 'brawler-slot';
+            slot.innerHTML = `<span class="slot-empty-icon">+</span>`;
+            slot.onclick = () => selectSlot(team, i);
+        }
+    }
+    if (activeSlot.team === team) {
+        document.getElementById(`slot-${team}-${activeSlot.idx}`)?.classList.add('selected-slot');
+    }
+}
+
+// ── Helpers ──
+function wrClass(wr) {
+    if (wr >= 65) return 'wr-s';
+    if (wr >= 57.5) return 'wr-a';
+    if (wr >= 50) return 'wr-b';
+    if (wr >= 42.5) return 'wr-c';
+    if (wr >= 35) return 'wr-d';
+    return 'wr-f';
+}
+
+function getMetaScore(brawler) {
+    const meta = getActiveMeta();
+    return meta[brawler] ? (meta[brawler].meta_score_norm ?? 50) : 50;
+}
+
+function getMetaData(brawler) {
+    const meta = getActiveMeta();
+    return meta[brawler] || null;
+}
+
+function getTeammateWr(b1, b2) {
+    if (TEAMMATE[b1] && TEAMMATE[b1][b2]) return TEAMMATE[b1][b2].win_rate;
+    if (TEAMMATE[b2] && TEAMMATE[b2][b1]) return TEAMMATE[b2][b1].win_rate;
+    return null;
+}
+
+// ── Main calculation ──
+const MATCHUP_W  = 0.60;
+const META_W     = 0.25;
+const COMBO_W    = 0.15;
+
+// Build per-brawler matchup lookup from a filtered set of records.
+// Returns {ba: {bb: {win_rate, picks}}} from actual series results.
+function buildSynergyFromRecords(records) {
+    const wins = {}, total = {};
+    records.forEach(m => {
+        const all1 = m.all_t1b || [m.t1b];
+        const all2 = m.all_t2b || [m.t2b];
+        const t1won = normBrawler(m.winner) === normBrawler(m.t1);
+        // Use first game comp as representative
+        const t1b = all1[0] || [];
+        const t2b = all2[0] || [];
+        t1b.forEach(ba => {
+            t2b.forEach(bb => {
+                const k1 = normBrawler(ba), k2 = normBrawler(bb);
+                if (!k1 || !k2) return;
+                if (!wins[k1])  wins[k1]  = {};
+                if (!total[k1]) total[k1] = {};
+                if (!wins[k1][k2])  wins[k1][k2]  = 0;
+                if (!total[k1][k2]) total[k1][k2] = 0;
+                total[k1][k2]++;
+                if (t1won) wins[k1][k2]++;
+            });
+        });
+    });
+    // Convert to {ba: {bb: {win_rate, picks}}}
+    const out = {};
+    for (const ba in total) {
+        out[ba] = {};
+        for (const bb in total[ba]) {
+            const p = total[ba][bb];
+            out[ba][bb] = { win_rate: (wins[ba][bb] / p) * 100, picks: p };
+        }
+    }
+    return out;
+}
+
+function calculate() {
+    updateFilterBadge();
+    const a = comps.a.filter(Boolean);
+    const b = comps.b.filter(Boolean);
+
+    if (a.length === 0 || b.length === 0) {
+        document.getElementById('result-placeholder').classList.remove('hidden');
+        document.getElementById('breakdown-section').style.display = 'none';
+        document.getElementById('recent-match-box').style.display = 'none';
+        window._recentMatch = null;
+        return;
+    }
+
+    // Build filtered records for this context (mode + map + date range)
+    const contextRecords = filteredMatchRecords().filter(m => {
+        if (selectedMode && (m.mode || '') !== selectedMode) return false;
+        if (selectedMap  && (m.map  || '') !== selectedMap)  return false;
+        return true;
+    });
+
+    // Build synergy from filtered records (date + mode/map).
+    // Always used as primary source; global SYNERGY is fallback only.
+    const ctxSynergy = buildSynergyFromRecords(contextRecords);
+
+    // Helper: look up matchup wr for ba (a-side) vs bb (b-side)
+    // Tries date/mode/map-filtered records first, falls back to global SYNERGY
+    function lookupMatchupWr(ba, bb) {
+        const baN = normBrawler(ba), bbN = normBrawler(bb);
+        // 1. Filtered context (date + mode/map)
+        if (ctxSynergy[baN]?.[bbN] !== undefined) return { wr: ctxSynergy[baN][bbN].win_rate, picks: ctxSynergy[baN][bbN].picks };
+        if (ctxSynergy[bbN]?.[baN] !== undefined) return { wr: 100 - ctxSynergy[bbN][baN].win_rate, picks: ctxSynergy[bbN][baN].picks };
+        // 2. Global SYNERGY fallback (all-time aggregate from Rust)
+        if (SYNERGY[ba]?.[bb] !== undefined) return { wr: SYNERGY[ba][bb].win_rate, picks: SYNERGY[ba][bb].picks };
+        if (SYNERGY[bb]?.[ba] !== undefined) return { wr: 100 - SYNERGY[bb][ba].win_rate, picks: SYNERGY[bb][ba].picks };
+        return { wr: 50, picks: 0 };
+    }
+
+    // 1. Matchup score
+    let totalMatchupWr = 0, matchupCount = 0, coverCount = 0;
+    const matchups = [];
+    a.forEach(ba => {
+        b.forEach(bb => {
+            const { wr, picks } = lookupMatchupWr(ba, bb);
+            if (picks > 0) coverCount++;
+            totalMatchupWr += wr; matchupCount++;
+            matchups.push({ ba, bb, wr, picks });
+        });
+    });
+    const avgMatchupWrA = matchupCount > 0 ? totalMatchupWr / matchupCount : 50;
+    const coverage = matchupCount > 0 ? Math.round(coverCount / matchupCount * 100) : 0;
+
+    // 2. Meta score
+    const metaA = a.reduce((s, x) => s + getMetaScore(x), 0) / a.length;
+    const metaB = b.reduce((s, x) => s + getMetaScore(x), 0) / b.length;
+    const metaTotal = metaA + metaB;
+    const metaWrA = metaTotal > 0 ? (metaA / metaTotal) * 100 : 50;
+
+    // 3. Combo (teammate synergy within each comp)
+    function compComboScore(comp) {
+        if (comp.length < 2) return 50;
+        let total = 0, cnt = 0;
+        for (let i = 0; i < comp.length; i++) {
+            for (let j = i+1; j < comp.length; j++) {
+                const wr = getTeammateWr(comp[i], comp[j]);
+                total += wr !== null ? wr : 50;
+                cnt++;
+            }
+        }
+        return cnt > 0 ? total / cnt : 50;
+    }
+    const comboA = compComboScore(a);
+    const comboB = compComboScore(b);
+    const comboTotal = comboA + comboB;
+    const comboWrA = comboTotal > 0 ? (comboA / comboTotal) * 100 : 50;
+
+    // 4. Blend
+    const finalWrA = MATCHUP_W * avgMatchupWrA + META_W * metaWrA + COMBO_W * comboWrA;
+    const finalWrB = 100 - finalWrA;
+
+    // Display result
+    document.getElementById('result-placeholder').classList.add('hidden');
+    document.getElementById('pct-a').textContent = finalWrA.toFixed(1) + '%';
+    document.getElementById('pct-b').textContent = finalWrB.toFixed(1) + '%';
+
+    const diff = Math.abs(finalWrA - 50);
+    let verdict;
+    if (diff < 2) verdict = 'Very even matchup';
+    else if (diff < 5) verdict = finalWrA > 50 ? '<span>Blue Team</span> has a slight edge' : '<span>Red Team</span> has a slight edge';
+    else if (diff < 10) verdict = finalWrA > 50 ? '<span>Blue Team</span> is favoured' : '<span>Red Team</span> is favoured';
+    else verdict = finalWrA > 50 ? '<span>Blue Team</span> wins lol' : '<span>Red Team</span> wins lol';
+    document.getElementById('verdict').innerHTML = verdict;
+
+    const note = document.getElementById('coverage-note');
+    note.textContent = coverage < 100 ? `${coverage}% direct matchup data` : '';
+
+    // Breakdown data store
+    window._breakdownMatchups = matchups;
+    window._breakdownComboA = buildComboCells(a, 'A');
+    window._breakdownComboB = buildComboCells(b, 'B');
+    window._breakdownMeta = buildMetaCells(a, b);
+
+    document.getElementById('breakdown-section').style.display = '';
+    showRecentMatch(a, b);
+    showTab(activeTab);
+}
+
+// ── Recent match lookup ──
+function timeAgoFromBattleTime(bt) {
+    // bt format: "20260212T085117.000Z"
+    if (!bt || bt.length < 15) return '';
+    try {
+        const s = bt.replace(/\.\d+Z$/, 'Z');
+        // parse: YYYYMMDDTHHmmssZ
+        const y  = s.slice(0,4), mo = s.slice(4,6), d  = s.slice(6,8);
+        const h  = s.slice(9,11), mi = s.slice(11,13), sc = s.slice(13,15);
+        const dt = new Date(`${y}-${mo}-${d}T${h}:${mi}:${sc}Z`);
+        const diffSec = Math.floor((Date.now() - dt.getTime()) / 1000);
+        if (diffSec < 3600)       return `${Math.floor(diffSec/60)}m ago`;
+        if (diffSec < 86400)      return `${Math.floor(diffSec/3600)}h ago`;
+        if (diffSec < 86400*30)   return `${Math.floor(diffSec/86400)}d ago`;
+        return dt.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+    } catch(e) { return ''; }
+}
+
+function teamLogoUrl(name) {
+    if (!name) return '/static/images/teams/default.png';
+    // try to match known team logo filenames
+    const slug = name.toLowerCase().trim().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+    return '/static/images/teams/' + slug + '.png';
+}
+
+function normBrawler(name) {
+    // strip everything except letters and digits, lowercase — handles ALL CAPS, hyphens, spaces, dots
+    return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function compMatchesAny(allComps, queryBrawlers) {
+    // returns true if ANY game-comp in the series contains all queried brawlers
+    return allComps.some(compBrawlers => {
+        const normRec = compBrawlers.map(normBrawler);
+        return queryBrawlers.every(b => normRec.includes(normBrawler(b)));
+    });
+}
+
+function showRecentMatch(a, b) {
+    const box = document.getElementById('recent-match-box');
+    const body = document.getElementById('recent-match-body');
+
+    // Only search when both full comps (3 brawlers each) are selected
+    if (a.length < 3 || b.length < 3) { box.style.display = 'none'; return; }
+
+    // Search newest → oldest; match if one side (across all games) contains all of a,
+    // and other side (across all games) contains all of b
+    const records = filteredMatchRecords();
+    let found = null;
+    for (let i = records.length - 1; i >= 0; i--) {
+        const m = records[i];
+        const all1 = m.all_t1b || [m.t1b];
+        const all2 = m.all_t2b || [m.t2b];
+        const fwdA = compMatchesAny(all1, a) && compMatchesAny(all2, b);
+        const fwdB = compMatchesAny(all1, b) && compMatchesAny(all2, a);
+        if (fwdA || fwdB) {
+            if (fwdA) {
+                found = m;
+            } else {
+                // flip so blue comp is always on top
+                found = { t1: m.t2, t2: m.t1,
+                          all_t1b: m.all_t2b, all_t2b: m.all_t1b,
+                          t1b: m.t2b, t2b: m.t1b,
+                          score_t1: m.score_t2, score_t2: m.score_t1,
+                          winner: m.winner, mode: m.mode, map: m.map,
+                          date: m.date, battle_time: m.battle_time,
+                          num_games: m.num_games };
+            }
+            break;
+        }
+    }
+
+    if (!found) {
+        box.style.display = 'none';
+        window._recentMatch = null;
+        return;
+    }
+    box.style.display = '';
+
+    const normStr = s => (s || '').toLowerCase().trim();
+    const t1win = normStr(found.winner) === normStr(found.t1);
+    const t2win = !t1win && !!found.winner;
+
+    // Store for matchups tab to supplement missing pairs
+    window._recentMatch = { t1b: found.all_t1b ? found.all_t1b[0] : found.t1b,
+                             t2b: found.all_t2b ? found.all_t2b[0] : found.t2b,
+                             t1win };
+
+    const t1name = found.t1 || 'Blue Team';
+    const t2name = found.t2 || 'Red Team';
+
+    const t1score = (found.score_t1 !== undefined) ? found.score_t1 : (t1win ? 1 : 0);
+    const t2score = (found.score_t2 !== undefined) ? found.score_t2 : (t2win ? 1 : 0);
+
+    const modeSlug = (found.mode || '').toLowerCase().replace(/ /g,'_');
+    const mapSlug  = (found.map  || '').toLowerCase().replace(/ /g,'_').replace(/-/g,'_').replace(/'/g,'');
+    const timeAgo  = timeAgoFromBattleTime(found.battle_time || '');
+
+    // all_t1b / all_t2b are arrays of per-game comps e.g. [[b1,b2,b3],[b1,b2,b3]]
+    const all1 = found.all_t1b || [found.t1b];
+    const all2 = found.all_t2b || [found.t2b];
+
+    // Only show games where BOTH sides actually match the queried compositions.
+    // This filters out games in the series where different brawlers were used.
+    const matchingGames = [];
+    for (let g = 0; g < all1.length; g++) {
+        const norm1 = all1[g].map(normBrawler);
+        const norm2 = all2[g].map(normBrawler);
+        const side1hasA = a.every(x => norm1.includes(normBrawler(x)));
+        const side1hasB = b.every(x => norm1.includes(normBrawler(x)));
+        const side2hasA = a.every(x => norm2.includes(normBrawler(x)));
+        const side2hasB = b.every(x => norm2.includes(normBrawler(x)));
+        if ((side1hasA && side2hasB) || (side1hasB && side2hasA)) {
+            matchingGames.push(g);
+        }
+    }
+    // Fallback to all games if nothing matched (shouldn't happen)
+    const gameIndices = matchingGames.length > 0 ? matchingGames : all1.map((_, i) => i);
+
+    // one column per game: 3 brawler icons stacked
+    const gameCol = (brawlers) =>
+        `<div class="rm-game-col">${brawlers.map(b =>
+            `<img class="rm-brawler-icon" src="${brawlerImg(b)}" alt="${b}" onerror="this.style.opacity='0.3'">`
+        ).join('')}</div>`;
+
+    // Deduplicate: only render each unique pair of compositions once.
+    // Teams often run the same comp in every game of a series.
+    const seenKeys = new Set();
+    const uniqueIndices = gameIndices.filter(g => {
+        const key = all1[g].map(normBrawler).sort().join(',') + '|' + all2[g].map(normBrawler).sort().join(',');
+        if (seenKeys.has(key)) return false;
+        seenKeys.add(key);
+        return true;
+    });
+
+    const t1games = uniqueIndices.map(g => gameCol(all1[g])).join('');
+    const t2games = uniqueIndices.map(g => gameCol(all2[g])).join('');
+
+    body.innerHTML = `
+        <div class="rm-card">
+            <div class="rm-header">
+                <div class="rm-header-team left">
+                    <img class="rm-header-logo" src="${teamLogoUrl(t1name)}" onerror="this.src='/static/images/teams/default.png'" alt="${t1name}">
+                    <span class="rm-header-result ${t1win ? 'rm-win' : 'rm-loss'}">${t1score}</span>
+                </div>
+                <div class="rm-header-centre">
+                    <div class="rm-header-mode">
+                        ${modeSlug ? `<img class="rm-header-mode-icon" src="/static/images/modes/${modeSlug}.png" onerror="this.style.display='none'" alt="">` : ''}
+                        ${found.mode ? `<span class="rm-header-mode-name">${found.mode}</span>` : ''}
+                    </div>
+                    ${timeAgo ? `<div class="rm-header-time">${timeAgo}</div>` : (found.date ? `<div class="rm-header-time">${found.date}</div>` : '')}
+                </div>
+                <div class="rm-header-team right">
+                    <img class="rm-header-logo" src="${teamLogoUrl(t2name)}" onerror="this.src='/static/images/teams/default.png'" alt="${t2name}">
+                    <span class="rm-header-result ${t2win ? 'rm-win' : 'rm-loss'}">${t2score}</span>
+                </div>
+            </div>
+            <div class="rm-body">
+                <div class="rm-comp">${t1games}</div>
+                <div class="rm-center">
+                    ${mapSlug ? `<img class="rm-map-img" src="/static/images/maps/${mapSlug}.png" onerror="this.style.display='none'" alt="${found.map}">` : ''}
+                    ${found.map ? `<div class="rm-map-name">${found.map}</div>` : ''}
+                </div>
+                <div class="rm-comp">${t2games}</div>
+            </div>
+        </div>
+    `;
+}
+
+function buildComboCells(comp, label) {
+    const cells = [];
+    for (let i = 0; i < comp.length; i++) {
+        for (let j = i+1; j < comp.length; j++) {
+            const wr = getTeammateWr(comp[i], comp[j]);
+            cells.push({ b1: comp[i], b2: comp[j], wr: wr !== null ? wr : 50, hasData: wr !== null, label });
+        }
+    }
+    return cells;
+}
+
+function buildMetaCells(a, b) {
+    const map  = selectedMap;
+    const mode = selectedMode;
+    const ctx  = map ? `(${map})` : mode ? `(${mode})` : '(Overall)';
+    const makeCell = (x, team) => {
+        const d = getMetaData(x);
+        return {
+            brawler: x, team, ctx,
+            win_rate:   d ? (d.win_rate   ?? null) : null,
+            pick_rate:  d ? (d.pick_rate  ?? null) : null,
+            // raw meta score = win_rate * pick_rate, same formula as meta page
+            meta_score: (d && d.win_rate != null && d.pick_rate != null) ? d.win_rate * d.pick_rate : null,
+        };
+    };
+    return [
+        ...a.map(x => makeCell(x, 'A')),
+        ...b.map(x => makeCell(x, 'B')),
+    ];
+}
+
+function showTab(tab) {
+    activeTab = tab;
+    ['matchups','combos','meta'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+    });
+    const grid = document.getElementById('breakdown-grid');
+    if (tab === 'matchups') {
+        const matchups = (window._breakdownMatchups || []).filter(m => m.picks > 0);
+        grid.innerHTML = matchups.map(m => {
+            const cls = wrClass(m.wr);
+            return `<div class="matchup-cell">
+                <img src="${brawlerImg(m.ba)}" onerror="this.style.display='none'">
+                <img src="${brawlerImg(m.bb)}" onerror="this.style.display='none'">
+                <div class="matchup-cell-info">
+                    <div class="matchup-cell-names">${m.ba} vs ${m.bb}</div>
+                    <div class="matchup-cell-wr ${cls}">${m.wr.toFixed(1)}%</div>
+                    <div class="matchup-cell-picks">${m.picks} games</div>
+                </div>
+            </div>`;
+        }).join('');
+    } else if (tab === 'combos') {
+        const cells = [...(window._breakdownComboA||[]), ...(window._breakdownComboB||[])].filter(c => c.hasData);
+        grid.innerHTML = cells.map(c => {
+            const cls = wrClass(c.wr);
+            const teamLabel = c.label === 'A' ? 'Blue Team' : 'Red Team';
+            return `<div class="matchup-cell">
+                <img src="${brawlerImg(c.b1)}" onerror="this.style.display='none'">
+                <img src="${brawlerImg(c.b2)}" onerror="this.style.display='none'">
+                <div class="matchup-cell-info">
+                    <div class="matchup-cell-names">${c.b1} + ${c.b2}</div>
+                    <div class="matchup-cell-wr ${cls}">${c.wr.toFixed(1)}% WR together</div>
+                    <div class="matchup-cell-picks">${teamLabel}</div>
+                </div>
+            </div>`;
+        }).join('');
+    } else {
+        const cells = window._breakdownMeta || [];
+        const ctx  = selectedMap ? selectedMap : selectedMode ? selectedMode : 'Overall';
+        grid.innerHTML = cells.map(c => {
+            const teamLabel = c.team === 'A' ? 'Blue Team' : 'Red Team';
+            if (c.win_rate === null) {
+                return `<div class="matchup-cell">
+                    <img src="${brawlerImg(c.brawler)}" onerror="this.style.display='none'">
+                    <div class="matchup-cell-info">
+                        <div class="matchup-cell-names">${c.brawler}</div>
+                        <div class="matchup-cell-wr wr-c">No data · ${teamLabel}</div>
+                        <div class="matchup-cell-picks">${ctx}</div>
+                    </div>
+                </div>`;
+            }
+            const wrCls = wrClass(c.win_rate);
+            return `<div class="matchup-cell">
+                <img src="${brawlerImg(c.brawler)}" onerror="this.style.display='none'">
+                <div class="matchup-cell-info">
+                    <div class="matchup-cell-names">${c.brawler} <span style="font-weight:400;color:var(--text-dim);font-size:0.85em;">· ${teamLabel}</span></div>
+                    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.1rem;">
+                        <span style="font-size:0.62rem;color:var(--text-dim);">Pick% <strong style="color:var(--text)">${c.pick_rate.toFixed(1)}%</strong></span>
+                        <span style="font-size:0.62rem;color:var(--text-dim);">WR <strong class="${wrCls}">${c.win_rate.toFixed(1)}%</strong></span>
+                        <span style="font-size:0.62rem;color:var(--text-dim);">Meta <strong style="color:var(--text)">${c.meta_score.toFixed(0)}</strong></span>
+                    </div>
+                    <div class="matchup-cell-picks">${ctx}</div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+}
+
+// ── Boot ──
+// Pre-fill custom date inputs from localStorage
+if (customStartDate) { const el = document.getElementById('custom-start'); if (el) el.value = customStartDate; }
+if (customEndDate)   { const el = document.getElementById('custom-end');   if (el) el.value = customEndDate;   }
+updateTimeRangeUI();
+initPicker('a');
+initPicker('b');
+selectSlot('a', 0);
+
+// Close custom date popup when clicking outside
+document.addEventListener('click', e => {
+    const wrap = document.querySelector('.time-range-card-wrap');
+    const popup = document.getElementById('custom-date-popup');
+    if (popup && popup.classList.contains('visible') && wrap && !wrap.contains(e.target)) {
+        popup.classList.remove('visible');
+        // If no custom dates applied yet, revert active btn to previous range
+        if (!customStartDate && !customEndDate && activeDateRange === 'custom') {
+            activeDateRange = '30d';
+            updateTimeRangeUI();
+        }
+    }
+});
+</script>
+{% endblock %}

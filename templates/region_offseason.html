@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ region }} - Brawlytics{% endblock %}
+{% block title %}{{ region|region_name }} - Brawlytics{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -381,7 +381,7 @@
 
 {% block content %}
 <div class="breadcrumb">
-    <a href="/dashboard">Home</a> / {{ region }}
+    <a href="/dashboard">Home</a> / {{ region|region_name }}
 </div>
 
 <div class="page-header">
@@ -392,16 +392,16 @@
         <img src="/static/images/flags/us.png" alt="North America" class="region-flag">
         {% elif region_code == 'EU' %}
         <img src="/static/images/flags/eu.png" alt="Europe" class="region-flag">
-        {% elif region_code == 'LATAM' %}
-        <img src="/static/images/flags/br.png" alt="LATAM" class="region-flag">
+        {% elif region_code == 'SA' %}
+        <img src="/static/images/flags/br.png" alt="SA" class="region-flag">
         {% elif region_code == 'EA' %}
         <img src="/static/images/flags/ea.png" alt="East Asia" class="region-flag">
         {% elif region_code == 'SEA' %}
         <img src="/static/images/flags/all.png" alt="Southeast Asia" class="all-region-icon">
         {% endif %}
-        <h1 class="page-title">{{ region }}</h1>
+        <h1 class="page-title">{{ region|region_name }}</h1>
     </div>
-    <p class="page-subtitle">Player statistics for {{ region }}</p>
+    <p class="page-subtitle">Player statistics for {{ region|region_name }}</p>
 </div>
 
 <div class="stat-grid">

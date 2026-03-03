@@ -4,376 +4,441 @@
 
 {% block extra_styles %}
 <style>
-    .mode-detail-header {
-        text-align: center;
-        margin-bottom: 2rem;
-        padding: 2rem 0;
-        position: relative;
+    html, body {
+        overflow: clip;
+        height: 100vh;
     }
-    
-    .mode-detail-header::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 500px;
-        height: 500px;
-        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-        opacity: 0.1;
-        pointer-events: none;
-        z-index: -1;
+
+    .breadcrumb {
+        margin-bottom: 0.75rem;
     }
-    
-    .mode-hero {
+
+    .mode-layout {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 1rem;
+        width: 100%;
+        align-items: start;
+    }
+
+    /* Left Column */
+    .left-column {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    /* Right Column */
+    .right-column {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-width: 0;
+    }
+
+    /* ─── Hero Card ─── */
+    .mode-hero-card {
+        background: var(--card);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 0.6rem;
+        border: 2px solid rgba(var(--primary-rgb), 0.25);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .mode-hero-icons {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 2rem;
-        margin-bottom: 2rem;
+        gap: 0.5rem;
     }
-    
-    .mode-hero-icons {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-    }
-    
-    .mode-hero-image {
-        width: 120px;
-        height: 120px;
+
+    .hero-img {
+        width: 52px;
+        height: 52px;
         object-fit: contain;
-        filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));
+        filter: drop-shadow(0 4px 12px rgba(var(--primary-rgb), 0.4));
     }
-    
-    .mode-separator {
-        font-size: 3rem;
+
+    .hero-separator {
+        font-size: 1.2rem;
         color: var(--text-dim);
+        font-weight: 900;
     }
-    
-    .mode-hero-info h1 {
-        font-size: 3rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        letter-spacing: -2px;
-        margin-bottom: 0.5rem;
+
+    .mode-hero-card h1 {
+        font-size: 1.1rem;
+        font-weight: 900;
+        margin: 0;
+        line-height: 1.2;
+        color: var(--text);
+        letter-spacing: -0.3px;
+        text-align: center;
     }
-    
-    .mode-hero-info p {
+
+    .hero-sub {
+        text-align: center;
         color: var(--text-dim);
-        font-size: 1.15rem;
+        font-size: 0.65rem;
+        line-height: 1.3;
     }
-    
+
+    /* ─── Overview Stats ─── */
     .overview-stats {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.25rem;
-        margin-bottom: 3rem;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+        width: 100%;
     }
-    
+
     .overview-stat-card {
-        background: var(--card);
-        padding: 1.75rem;
-        border-radius: 12px;
-        border-left: 4px solid var(--primary);
+        background: var(--dark);
+        padding: 0.45rem;
+        border-radius: 8px;
+        text-align: center;
+        overflow: hidden;
+        min-width: 0;
     }
-    
+
     .overview-stat-label {
-        font-size: 0.8rem;
+        font-size: 0.55rem;
         text-transform: uppercase;
-        color: var(--text-dim);
-        font-weight: 600;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.5rem;
-    }
-    
-    .overview-stat-value {
-        font-size: 2.25rem;
+        color: rgba(255, 255, 255, 0.5);
         font-weight: 700;
-        color: var(--text);
+        letter-spacing: 0.2px;
+        margin-bottom: 0.1rem;
     }
-    
-    .stats-section {
+
+    .overview-stat-value {
+        font-size: 0.9rem;
+        font-weight: 900;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    /* ─── Shared left card shell ─── */
+    .left-card {
         background: var(--card);
+        backdrop-filter: blur(10px);
         border-radius: 16px;
         overflow: hidden;
-        margin-bottom: 2rem;
-        border: 1px solid rgba(255,255,255,0.05);
-        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
     }
-    
-    .stats-header {
-        background: linear-gradient(135deg, var(--dark) 0%, var(--card) 100%);
-        padding: 1.5rem 2rem;
-        font-size: 1.5rem;
-        font-weight: 700;
-        border-bottom: 2px solid var(--primary);
-        position: relative;
+
+    .left-card:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
     }
-    
-    .stats-header::after {
-        content: "";
-        position: absolute;
-        bottom: -2px;
-        left: 0;
-        width: 100%;
-        height: 2px;
-        background: var(--primary);
-        box-shadow: 0 0 20px var(--primary);
-    }
-    
-    .stats-content {
-        padding: 2rem;
+
+    .left-card-header {
         background: var(--dark);
+        padding: 0.4rem 0.7rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text);
+        flex-shrink: 0;
     }
-    
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 1rem;
+
+    .left-card-body {
+        padding: 0.3rem;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        max-height: 340px;
+        overflow-y: auto;
     }
-    
-    .stat-item-link {
-        background: rgba(255,255,255,0.04);
-        padding: 1rem;
-        border-radius: 10px;
+
+    .left-card-body::-webkit-scrollbar { width: 3px; }
+    .left-card-body::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+    .left-card-body::-webkit-scrollbar-thumb { background: rgba(var(--primary-rgb), 0.35); border-radius: 2px; }
+
+    /* ─── Map rows (left column) ─── */
+    .map-row {
+        background: var(--dark);
+        padding: 0.35rem 0.5rem;
+        border-radius: 7px;
         border: 1px solid rgba(255,255,255,0.06);
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.45rem;
         text-decoration: none;
         color: inherit;
-        transition: all 0.2s ease;
-        cursor: pointer;
+        transition: all 0.15s ease;
     }
-    
-    .stat-item-link:hover {
-        background: rgba(255,255,255,0.08);
-        border-color: var(--primary);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+
+    .map-row:hover {
+        background: rgba(var(--primary-rgb), 0.1);
+        border-color: rgba(var(--primary-rgb), 0.4);
     }
-    
-    .stat-item-icon {
-        width: 50px;
-        height: 50px;
-        flex-shrink: 0;
+
+    .map-row-rank {
+        font-size: 0.6rem;
+        font-weight: 800;
+        min-width: 17px;
+        height: 17px;
         display: flex;
         align-items: center;
         justify-content: center;
+        border-radius: 4px;
         background: rgba(255,255,255,0.05);
-        border-radius: 8px;
+        color: var(--text-dim);
+        flex-shrink: 0;
     }
-    
-    .stat-item-icon img {
-        width: 40px;
-        height: 40px;
-        object-fit: contain;
+
+    .map-row-rank.top-1 { background: rgba(255,215,0,0.2); color: #ffd700; }
+    .map-row-rank.top-2 { background: rgba(192,192,192,0.2); color: #c0c0c0; }
+    .map-row-rank.top-3 { background: rgba(205,127,50,0.2); color: #cd7f32; }
+
+    .map-row-img {
+        width: 32px;
+        height: 32px;
+        object-fit: cover;
+        border-radius: 4px;
+        flex-shrink: 0;
     }
-    
-    .stat-item-info {
+
+    .map-row-info {
         flex: 1;
         min-width: 0;
     }
-    
-    .stat-item-name {
+
+    .map-row-name {
+        font-size: 0.72rem;
         font-weight: 700;
-        font-size: 1rem;
-        margin-bottom: 0.25rem;
         color: var(--text);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    
-    .stat-item-subtitle {
-        font-size: 0.75rem;
+
+    .map-row-sub {
+        font-size: 0.57rem;
         color: var(--text-dim);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        margin-top: 0.04rem;
     }
-    
-    .stat-item-values {
-        text-align: right;
+
+    .map-row-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.05rem;
         flex-shrink: 0;
     }
-    
-    .stat-item-winrate {
-        font-size: 1.2rem;
-        font-weight: 700;
-        margin-bottom: 0.25rem;
+
+    .map-row-wr {
+        font-size: 0.8rem;
+        font-weight: 800;
     }
-    
-    .stat-item-picks {
-        font-size: 0.75rem;
+
+    .map-row-picks {
+        font-size: 0.55rem;
         color: var(--text-dim);
     }
-    
-    /* Color-coded win rates */
-    .wr-s { color: #22c55e; }
-    .wr-a { color: #84cc16; }
-    .wr-b { color: #eab308; }
-    .wr-c { color: #f97316; }
-    .wr-d { color: #ef4444; }
-    .wr-f { color: #991b1b; }
-    
-    .no-data {
-        text-align: center;
-        padding: 2rem;
-        color: var(--text-dim);
-        font-size: 1rem;
-    }
-    
-    
-    @media (max-width: 768px) {
-    body {
-        overflow-x: hidden;
-    }
-    
-    .container {
-        padding: 1rem;
-        max-width: 100%;
-        overflow-x: hidden;
-    }
-    
-    .mode-detail-header {
-        padding: 1.5rem 0 1rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .mode-detail-header::before {
-        width: 300px;
-        height: 300px;
-    }
-    
-    .mode-hero {
+
+    /* ─── Right section ─── */
+    .stats-section {
+        background: var(--card);
+        backdrop-filter: blur(15px);
+        border-radius: 16px;
+        overflow: hidden;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
         flex-direction: column;
-        gap: 1rem;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    
-    .mode-hero-icons {
+
+    .stats-section:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+
+    .stats-header {
+        background: var(--dark);
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
+        font-weight: 800;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        flex-shrink: 0;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         gap: 0.5rem;
     }
-    
-    .mode-hero-image {
-        width: 80px;
-        height: 80px;
+
+    .sort-controls {
+        display: flex;
+        gap: 0.3rem;
     }
-    
-    .mode-separator {
-        font-size: 2rem;
+
+    .sort-btn {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        color: var(--text-dim);
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
     }
-    
-    .mode-hero-info h1 {
-        font-size: 1.5rem;
-        letter-spacing: -1px;
-        text-align: center;
+
+    .sort-btn:hover {
+        background: rgba(255,255,255,0.1);
+        border-color: rgba(255,255,255,0.2);
+        color: var(--text);
     }
-    
-    .mode-hero-info p {
-        font-size: 0.9rem;
-        text-align: center;
+
+    .sort-btn.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
     }
-    
-    .overview-stats {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0.75rem;
-        margin-bottom: 2rem;
+
+    .sort-icon {
+        font-size: 0.65rem;
+        transition: transform 0.2s ease;
     }
-    
-    .overview-stat-card {
-        padding: 1rem;
+
+    .sort-btn.ascending .sort-icon {
+        transform: rotate(180deg);
+    }
+
+    .stats-content {
+        padding: 0.35rem;
+        background: var(--bg);
+        overflow-y: auto;
+        max-height: calc(100vh - 200px);
+    }
+
+    .stats-content::-webkit-scrollbar { width: 4px; }
+    .stats-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+    .stats-content::-webkit-scrollbar-thumb { background: rgba(var(--primary-rgb), 0.4); border-radius: 2px; }
+    .stats-content::-webkit-scrollbar-thumb:hover { background: rgba(var(--primary-rgb), 0.6); }
+
+    /* ─── Brawlers grid (matches team.html exactly) ─── */
+    .brawlers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+        gap: 0.3rem;
+    }
+
+    .brawler-card {
+        background: var(--dark);
+        border-radius: 8px;
+        padding: 0.35rem;
+        border: 1px solid rgba(255,255,255,0.06);
         display: flex;
         flex-direction: column;
         align-items: center;
         text-align: center;
+        gap: 0.2rem;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        position: relative;
     }
-    
-    .overview-stat-label {
-        font-size: 0.7rem;
-        margin-bottom: 0.25rem;
+
+    .brawler-card:hover {
+        background: rgba(var(--primary-rgb), 0.08);
+        border-color: rgba(var(--primary-rgb), 0.5);
     }
-    
-    .overview-stat-value {
-        font-size: 1.8rem;
-        line-height: 1.2;
+
+    .brawler-rank-badge {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        font-size: 0.55rem;
+        font-weight: 900;
+        color: var(--text-dim);
+        background: rgba(255,255,255,0.06);
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-    
-    .stats-section {
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        overflow-x: hidden;
-    }
-    
-    .stats-header {
-        padding: 1.25rem 1rem;
-        font-size: 1.2rem;
-    }
-    
-    .stats-content {
-        padding: 1rem;
-    }
-    
-    .stats-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.5rem;
-    }
-    
-    .stat-item-link {
-        flex-direction: column;
-        padding: 0.75rem 0.5rem;
-        gap: 0.5rem;
-        text-align: center;
-    }
-    
-    .stat-item-icon {
+
+    .brawler-rank-badge.top-1 { background: rgba(255, 215, 0, 0.2); color: #ffd700; }
+    .brawler-rank-badge.top-2 { background: rgba(192, 192, 192, 0.2); color: #c0c0c0; }
+    .brawler-rank-badge.top-3 { background: rgba(205, 127, 50, 0.2); color: #cd7f32; }
+
+    .brawler-img {
         width: 40px;
         height: 40px;
+        object-fit: contain;
     }
-    
-    .stat-item-icon img {
-        width: 32px;
-        height: 32px;
-    }
-    
-    .stat-item-info {
-        width: 100%;
-    }
-    
-    .stat-item-name {
-        font-size: 0.75rem;
-        white-space: normal;
-        line-height: 1.2;
-    }
-    
-    .stat-item-subtitle {
-        font-size: 0.65rem;
-    }
-    
-    .stat-item-values {
-        text-align: center;
-        width: 100%;
-    }
-    
-    .stat-item-winrate {
-        font-size: 1.3rem;
-        font-weight: 600;
-    }
-    
-    .stat-item-picks {
-        font-size: 0.75rem;
-        margin-top: 0.15rem;
-    }
-    
-    .no-data {
-        padding: 1.5rem 1rem;
-        font-size: 0.9rem;
-    }
-}
 
+    .brawler-name {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+    }
+
+    .brawler-card-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.2rem;
+        width: 100%;
+    }
+
+    .brawler-mini-stat {
+        background: rgba(255,255,255,0.04);
+        border-radius: 4px;
+        padding: 0.2rem;
+        text-align: center;
+    }
+
+    .brawler-mini-value {
+        font-size: 0.7rem;
+        font-weight: 800;
+        color: var(--text);
+    }
+
+    .brawler-mini-label {
+        font-size: 0.45rem;
+        color: var(--text-dim);
+        text-transform: uppercase;
+    }
+
+    /* ─── Win rate colors ─── */
+    .wr-s { color: #10b981; }
+    .wr-a { color: #84cc16; }
+    .wr-b { color: #fbbf24; }
+    .wr-c { color: #fb923c; }
+    .wr-d { color: #f87171; }
+    .wr-f { color: #dc2626; }
+
+    .no-data {
+        text-align: center;
+        padding: 1rem 0.5rem;
+        color: var(--text-dim);
+        font-size: 0.75rem;
+    }
 </style>
 {% endblock %}
 
@@ -388,104 +453,222 @@
     <span class="breadcrumb-current">{{ mode }}</span>
 </div>
 
-<div class="mode-detail-header">
-    <div class="mode-hero">
-        <div class="mode-hero-icons">
-            {% set team_logo_filename = team_name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
-            <img src="/static/images/teams/{{ team_logo_filename }}" 
-                 alt="{{ team_name }}" 
-                 class="mode-hero-image"
-                 onerror="this.style.display='none'">
-            
-            <span class="mode-separator">×</span>
-            
-            {% set mode_icon = mode.lower().replace(' ', '_') + '.png' %}
-            <img src="/static/images/modes/{{ mode_icon }}" 
-                 alt="{{ mode }}" 
-                 class="mode-hero-image"
-                 onerror="this.style.display='none'">
-        </div>
-    </div>
-    <div class="mode-hero-info">
-        <h1>{{ team_name }} in {{ mode }}</h1>
-        <p>Performance statistics in this game mode</p>
-    </div>
-</div>
-
-<div class="overview-stats">
-    <div class="overview-stat-card">
-        <div class="overview-stat-label">Matches</div>
-        <div class="overview-stat-value">{{ mode_data.matches }}</div>
-    </div>
-    <div class="overview-stat-card">
-        <div class="overview-stat-label">Wins</div>
-        <div class="overview-stat-value">{{ mode_data.wins }}</div>
-    </div>
-    <div class="overview-stat-card">
-        <div class="overview-stat-label">Losses</div>
-        <div class="overview-stat-value">{{ mode_data.matches - mode_data.wins }}</div>
-    </div>
-    <div class="overview-stat-card">
-        <div class="overview-stat-label">Win Rate</div>
-        {% set mode_wr = (mode_data.wins / mode_data.matches * 100) if mode_data.matches > 0 else 0 %}
-        {% if mode_wr >= 65 %}
-        <div class="overview-stat-value wr-s">{{ "%.1f"|format(mode_wr) }}%</div>
-        {% elif mode_wr >= 57.5 %}
-        <div class="overview-stat-value wr-a">{{ "%.1f"|format(mode_wr) }}%</div>
-        {% elif mode_wr >= 50 %}
-        <div class="overview-stat-value wr-b">{{ "%.1f"|format(mode_wr) }}%</div>
-        {% elif mode_wr >= 42.5 %}
-        <div class="overview-stat-value wr-c">{{ "%.1f"|format(mode_wr) }}%</div>
-        {% elif mode_wr >= 35 %}
-        <div class="overview-stat-value wr-d">{{ "%.1f"|format(mode_wr) }}%</div>
-        {% else %}
-        <div class="overview-stat-value wr-f">{{ "%.1f"|format(mode_wr) }}%</div>
-        {% endif %}
-    </div>
-</div>
-
-<div class="stats-section">
-    <div class="stats-header">Maps</div>
-    <div class="stats-content">
-        {% if mode_data.maps %}
-        <div class="stats-grid">
-            {% for map_name, map_data in mode_data.maps.items()|sort(attribute='1.matches', reverse=True) %}
-            {% if map_name not in ['Unknown', 'nan'] %}
-            {% set map_wr = (map_data.wins / map_data.matches * 100) if map_data.matches > 0 else 0 %}
-            {% set map_img = map_name.lower().replace(' ', '_').replace('-', '_').replace("'", '') + '.png' %}
-            <a href="/team/{{ team_name }}/mode/{{ mode }}/map/{{ map_name }}" class="stat-item-link">
-                <div class="stat-item-icon">
-                    <img src="/static/images/maps/{{ map_img }}" 
-                         alt="{{ map_name }}"
-                         onerror="this.innerHTML='<span style=\'font-size:1.5rem\'>🗺️</span>'">
-                </div>
-                <div class="stat-item-info">
-                    <div class="stat-item-name">{{ map_name }}</div>
-                    <div class="stat-item-subtitle">{{ map_data.wins }}-{{ map_data.matches - map_data.wins }}</div>
-                </div>
-                <div class="stat-item-values">
-                    {% if map_wr >= 65 %}
-                    <div class="stat-item-winrate wr-s">{{ "%.1f"|format(map_wr) }}%</div>
-                    {% elif map_wr >= 57.5 %}
-                    <div class="stat-item-winrate wr-a">{{ "%.1f"|format(map_wr) }}%</div>
-                    {% elif map_wr >= 50 %}
-                    <div class="stat-item-winrate wr-b">{{ "%.1f"|format(map_wr) }}%</div>
-                    {% elif map_wr >= 42.5 %}
-                    <div class="stat-item-winrate wr-c">{{ "%.1f"|format(map_wr) }}%</div>
-                    {% elif map_wr >= 35 %}
-                    <div class="stat-item-winrate wr-d">{{ "%.1f"|format(map_wr) }}%</div>
-                    {% else %}
-                    <div class="stat-item-winrate wr-f">{{ "%.1f"|format(map_wr) }}%</div>
+{# ── Pre-compute brawler totals across all maps ── #}
+{% set brawler_list = [] %}
+{% if mode_data.maps %}
+    {% set seen = namespace(data={}) %}
+    {% for map_name, map_data in mode_data.maps.items() %}
+        {% if map_name not in ['Unknown', 'nan'] and map_data.brawlers %}
+            {% for bname, bdata in map_data.brawlers.items() %}
+                {% if bname not in ['Unknown', 'nan'] %}
+                    {% if bname not in seen.data %}
+                        {% set _ = seen.data.update({bname: {'picks': 0, 'wins': 0}}) %}
                     {% endif %}
-                    <div class="stat-item-picks">{{ map_data.matches }} matches</div>
-                </div>
-            </a>
-            {% endif %}
+                    {% set cur = seen.data[bname] %}
+                    {% set _ = seen.data.update({bname: {'picks': cur.picks + bdata.picks, 'wins': cur.wins + bdata.wins}}) %}
+                {% endif %}
             {% endfor %}
-        </div>
-        {% else %}
-        <div class="no-data">No map data available</div>
         {% endif %}
+    {% endfor %}
+    {% for bname, btotals in seen.data.items() %}
+        {% set bwr = (btotals.wins / btotals.picks * 100) if btotals.picks > 0 else 0 %}
+        {% set _ = brawler_list.append({'name': bname, 'picks': btotals.picks, 'wins': btotals.wins, 'wr': bwr}) %}
+    {% endfor %}
+{% endif %}
+{% set sorted_brawlers = brawler_list | sort(attribute='picks', reverse=True) %}
+
+<div class="mode-layout">
+
+    <!-- ══ LEFT COLUMN ══ -->
+    <div class="left-column">
+
+        <!-- Hero card -->
+        <div class="mode-hero-card">
+            <div class="mode-hero-icons">
+                {% set team_logo_filename = team_name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+                <img src="/static/images/teams/{{ team_logo_filename }}"
+                     alt="{{ team_name }}" class="hero-img"
+                     onerror="this.src='/static/images/teams/default.png'">
+                <span class="hero-separator">×</span>
+                {% set mode_icon = mode.lower().replace(' ', '_') + '.png' %}
+                <img src="/static/images/modes/{{ mode_icon }}"
+                     alt="{{ mode }}" class="hero-img"
+                     onerror="this.style.display='none'">
+            </div>
+            <h1>{{ mode }}</h1>
+            <div class="hero-sub">{{ team_name }}</div>
+
+            <div class="overview-stats">
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">Matches</div>
+                    <div class="overview-stat-value">{{ mode_data.matches }}</div>
+                </div>
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">Wins</div>
+                    <div class="overview-stat-value wr-s">{{ mode_data.wins }}</div>
+                </div>
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">Losses</div>
+                    <div class="overview-stat-value wr-f">{{ mode_data.matches - mode_data.wins }}</div>
+                </div>
+                <div class="overview-stat-card">
+                    <div class="overview-stat-label">Win Rate</div>
+                    {% set mode_wr = (mode_data.wins / mode_data.matches * 100) if mode_data.matches > 0 else 0 %}
+                    {% if mode_wr >= 65 %}<div class="overview-stat-value wr-s">{{ "%.1f"|format(mode_wr) }}%</div>
+                    {% elif mode_wr >= 57.5 %}<div class="overview-stat-value wr-a">{{ "%.1f"|format(mode_wr) }}%</div>
+                    {% elif mode_wr >= 50 %}<div class="overview-stat-value wr-b">{{ "%.1f"|format(mode_wr) }}%</div>
+                    {% elif mode_wr >= 42.5 %}<div class="overview-stat-value wr-c">{{ "%.1f"|format(mode_wr) }}%</div>
+                    {% elif mode_wr >= 35 %}<div class="overview-stat-value wr-d">{{ "%.1f"|format(mode_wr) }}%</div>
+                    {% else %}<div class="overview-stat-value wr-f">{{ "%.1f"|format(mode_wr) }}%</div>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Maps -->
+        <div class="left-card">
+            <div class="left-card-header">Maps</div>
+            <div class="left-card-body">
+                {% if mode_data.maps %}
+                {% for map_name, map_data in mode_data.maps.items()|sort(attribute='1.matches', reverse=True) %}
+                {% if map_name not in ['Unknown', 'nan'] %}
+                {% set map_wr = (map_data.wins / map_data.matches * 100) if map_data.matches > 0 else 0 %}
+                {% set map_img = map_name.lower().replace(' ', '_').replace('-', '_').replace("'", '') + '.png' %}
+                <a href="/team/{{ team_name }}/mode/{{ mode }}/map/{{ map_name }}" class="map-row">
+                    <div class="map-row-rank {% if loop.index == 1 %}top-1{% elif loop.index == 2 %}top-2{% elif loop.index == 3 %}top-3{% endif %}">{{ loop.index }}</div>
+                    <img src="/static/images/maps/{{ map_img }}" alt="{{ map_name }}"
+                         class="map-row-img" onerror="this.style.display='none'">
+                    <div class="map-row-info">
+                        <div class="map-row-name">{{ map_name }}</div>
+                        <div class="map-row-sub">{{ map_data.wins }}W · {{ map_data.matches - map_data.wins }}L</div>
+                    </div>
+                    <div class="map-row-right">
+                        {% if map_wr >= 65 %}<div class="map-row-wr wr-s">{{ "%.1f"|format(map_wr) }}%</div>
+                        {% elif map_wr >= 57.5 %}<div class="map-row-wr wr-a">{{ "%.1f"|format(map_wr) }}%</div>
+                        {% elif map_wr >= 50 %}<div class="map-row-wr wr-b">{{ "%.1f"|format(map_wr) }}%</div>
+                        {% elif map_wr >= 42.5 %}<div class="map-row-wr wr-c">{{ "%.1f"|format(map_wr) }}%</div>
+                        {% elif map_wr >= 35 %}<div class="map-row-wr wr-d">{{ "%.1f"|format(map_wr) }}%</div>
+                        {% else %}<div class="map-row-wr wr-f">{{ "%.1f"|format(map_wr) }}%</div>{% endif %}
+                        <div class="map-row-picks">{{ map_data.matches }}g</div>
+                    </div>
+                </a>
+                {% endif %}
+                {% endfor %}
+                {% else %}
+                <div class="no-data">No map data</div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ══ RIGHT COLUMN ══ -->
+    <div class="right-column">
+
+        <!-- Brawlers Played -->
+        <div class="stats-section">
+            <div class="stats-header">
+                <span>Brawlers Played</span>
+                <div class="sort-controls">
+                    <button class="sort-btn active" onclick="sortBrawlers('picks')" data-sort="picks">
+                        <span class="sort-icon">&#8595;</span> Picks
+                    </button>
+                    <button class="sort-btn" onclick="sortBrawlers('winrate')" data-sort="winrate">
+                        <span class="sort-icon">&#8595;</span> Win Rate
+                    </button>
+                    <button class="sort-btn" onclick="sortBrawlers('best')" data-sort="best">
+                        Meta
+                    </button>
+                </div>
+            </div>
+            <div class="stats-content">
+                {% if sorted_brawlers %}
+                <div class="brawlers-grid" id="brawlers-container">
+                    {% for entry in sorted_brawlers %}
+                    {% set brawler_img = entry.name.lower().replace(' ', '_').replace('-', '_').replace('.', '').replace("'", '') + '.png' %}
+                    <a href="/team/{{ team_name }}/brawler/{{ entry.name }}" class="brawler-card"
+                       data-picks="{{ entry.picks }}"
+                       data-winrate="{{ entry.wr }}">
+                        <div class="brawler-rank-badge {% if loop.index == 1 %}top-1{% elif loop.index == 2 %}top-2{% elif loop.index == 3 %}top-3{% endif %}">{{ loop.index }}</div>
+                        <img src="/static/images/brawlers/{{ brawler_img }}" alt="{{ entry.name }}"
+                             class="brawler-img" onerror="this.style.display='none'">
+                        <div class="brawler-name">{{ entry.name }}</div>
+                        <div class="brawler-card-stats">
+                            <div class="brawler-mini-stat">
+                                <div class="brawler-mini-value">{{ entry.picks }}</div>
+                                <div class="brawler-mini-label">Picks</div>
+                            </div>
+                            <div class="brawler-mini-stat">
+                                {% if entry.wr >= 65 %}<div class="brawler-mini-value wr-s">{{ "%.1f"|format(entry.wr) }}%</div>
+                                {% elif entry.wr >= 57.5 %}<div class="brawler-mini-value wr-a">{{ "%.1f"|format(entry.wr) }}%</div>
+                                {% elif entry.wr >= 50 %}<div class="brawler-mini-value wr-b">{{ "%.1f"|format(entry.wr) }}%</div>
+                                {% elif entry.wr >= 42.5 %}<div class="brawler-mini-value wr-c">{{ "%.1f"|format(entry.wr) }}%</div>
+                                {% elif entry.wr >= 35 %}<div class="brawler-mini-value wr-d">{{ "%.1f"|format(entry.wr) }}%</div>
+                                {% else %}<div class="brawler-mini-value wr-f">{{ "%.1f"|format(entry.wr) }}%</div>{% endif %}
+                                <div class="brawler-mini-label">WR</div>
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="no-data">No brawler data available</div>
+                {% endif %}
+            </div>
+        </div>
+
     </div>
 </div>
+
+<script>
+let currentSort = 'picks';
+let isAscending = false;
+
+function sortBrawlers(sortBy) {
+    const container = document.getElementById('brawlers-container');
+    if (!container) return;
+    const items = Array.from(container.querySelectorAll('.brawler-card'));
+
+    if (currentSort === sortBy && sortBy !== 'best') {
+        isAscending = !isAscending;
+    } else {
+        isAscending = false;
+        currentSort = sortBy;
+    }
+
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.classList.remove('active', 'ascending');
+        if (btn.dataset.sort === sortBy) {
+            btn.classList.add('active');
+            if (isAscending && sortBy !== 'best') {
+                btn.classList.add('ascending');
+            }
+        }
+    });
+
+    items.sort((a, b) => {
+        let aVal, bVal;
+        if (sortBy === 'picks') {
+            aVal = parseFloat(a.dataset.picks);
+            bVal = parseFloat(b.dataset.picks);
+        } else if (sortBy === 'winrate') {
+            aVal = parseFloat(a.dataset.winrate);
+            bVal = parseFloat(b.dataset.winrate);
+        } else if (sortBy === 'best') {
+            aVal = parseFloat(a.dataset.picks) * parseFloat(a.dataset.winrate);
+            bVal = parseFloat(b.dataset.picks) * parseFloat(b.dataset.winrate);
+        }
+        return sortBy === 'best' ? bVal - aVal : (isAscending ? aVal - bVal : bVal - aVal);
+    });
+
+    items.forEach((item, index) => {
+        const badge = item.querySelector('.brawler-rank-badge');
+        badge.textContent = index + 1;
+        badge.className = 'brawler-rank-badge';
+        if (index === 0) badge.classList.add('top-1');
+        else if (index === 1) badge.classList.add('top-2');
+        else if (index === 2) badge.classList.add('top-3');
+        container.appendChild(item);
+    });
+}
+</script>
 {% endblock %}

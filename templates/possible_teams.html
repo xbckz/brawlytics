@@ -422,9 +422,9 @@
                     onclick="selectRegion('EU')" data-region="EU">
                 EU
             </button>
-            <button class="filter-btn {% if current_region == 'LATAM' %}active{% endif %}" 
-                    onclick="selectRegion('LATAM')" data-region="LATAM">
-                LATAM
+            <button class="filter-btn {% if current_region == 'SA' %}active{% endif %}"
+                    onclick="selectRegion('SA')" data-region="SA">
+                SA
             </button>
             <button class="filter-btn {% if current_region == 'EA' %}active{% endif %}" 
                     onclick="selectRegion('EA')" data-region="EA">
@@ -465,7 +465,7 @@
         </div>
         
         <div class="trio-header">
-            <span class="trio-region">{{ trio.region }}</span>
+            <span class="trio-region">{{ trio.region|region_name }}</span>
         </div>
         
         <div class="trio-players">

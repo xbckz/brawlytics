@@ -227,7 +227,7 @@
              onerror="this.style.display='none'">
         <div class="player-name">{{ player.name }}</div>
         <div class="player-tag">{{ player.tag }}</div>
-        <div class="player-region">{{ player.region }}</div>
+        <div class="player-region">{{ player.region|region_name }}</div>
         <div class="player-quick-stats">
             <div class="quick-stat">
                 <div class="quick-stat-label">Games</div>

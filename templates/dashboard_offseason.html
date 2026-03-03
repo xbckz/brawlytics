@@ -4,603 +4,580 @@
 
 {% block extra_styles %}
 <style>
-    .hero {
-        text-align: center;
-        margin-bottom: 2rem;      
-        padding: 2rem 0 1.5rem;   
-        position: relative;
-    }
-    
-    .hero::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 500px;
-        height: 500px;
-        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-        opacity: 0.1;
-        pointer-events: none;
-        z-index: -1;
-    }
-    
-    .hero h1 {
-        font-size: 3.5rem;
-        margin-bottom: 0.5rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        letter-spacing: -2px;
+    html, body {
+        overflow: clip;
+        height: 100vh;
     }
 
-    .hero .mode {
-        color: var(--text-dim);
-        font-size: 1rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 0.5rem;
-    }
-    
-    .hero p {
-        color: var(--text-dim);
-        font-size: 1.15rem;
-        font-weight: 400;
-    }
-
-    .stat-grid {
+    .dashboard-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-    
-    .stat-card {
-        background: var(--card);
-        padding: 2rem;
-        border-radius: 16px;
-        border: 1px solid rgba(255,255,255,0.05);
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .stat-card::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 4px;
-        height: 100%;
-        background: var(--primary);
+        grid-template-columns: 260px 1fr 260px;
+        grid-template-rows: auto 1fr;
+        gap: 0.75rem;
+        height: calc(100vh - 100px);
     }
 
-    .stat-label {
-        color: var(--text-dim);
-        font-size: 0.9rem;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
+    /* Ultra Compact Header */
+    .page-header {
+        grid-column: 1 / -1;
+        background: var(--card);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        border: 2px solid rgba(var(--primary-rgb), 0.25);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .header-title {
+        font-size: 1.25rem;
+        font-weight: 900;
+        color: var(--text);
+    }
+
+    .header-stats {
+        display: flex;
+        gap: 1.5rem;
+    }
+
+    .stat-box {
+        text-align: center;
     }
 
     .stat-value {
-        font-size: 2.5rem;
-        font-weight: 800;
+        font-size: 1.2rem;
+        font-weight: 900;
         color: var(--text);
         line-height: 1;
     }
 
-    .section-title {
-        font-size: 1.75rem;
+    .stat-label {
+        font-size: 0.6rem;
+        color: var(--text-dim);
+        text-transform: uppercase;
         font-weight: 700;
-        margin-bottom: 1.5rem;
-        color: var(--text);
-        position: relative;
-        padding-left: 1rem;
-    }
-    
-    .section-title::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 4px;
-        height: 70%;
-        background: var(--primary);
-        border-radius: 2px;
+        letter-spacing: 0.5px;
+        margin-top: 0.2rem;
     }
 
-    .leaderboard-section {
+    /* Panels */
+    .panel {
         background: var(--card);
-        border-radius: 16px;
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        display: flex;
+        flex-direction: column;
         overflow: hidden;
-        margin-bottom: 3.5rem;
-        border: 1px solid rgba(255,255,255,0.05);
-        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
-    }
-    
-    .leaderboard-header {
-        background: linear-gradient(135deg, var(--dark) 0%, var(--card) 100%);
-        padding: 1.75rem 2rem;
-        font-size: 1.5rem;
-        font-weight: 700;
-        border-bottom: 2px solid var(--primary);
-        position: relative;
-    }
-    
-    .leaderboard-header::after {
-        content: "";
-        position: absolute;
-        bottom: -2px;
-        left: 0;
-        width: 100%;
-        height: 2px;
-        background: var(--primary);
-        box-shadow: 0 0 20px var(--primary);
     }
 
-    .leaderboard-item {
-        padding: 1.5rem 2rem;
-        border-bottom: 1px solid rgba(255,255,255,0.03);
+    .panel-header {
+        background: var(--dark);
+        padding: 0.6rem 0.85rem;
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+    }
+
+    /* Left - Regions */
+    .regions-list {
+        padding: 0.5rem;
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
+        gap: 0.45rem;
+        overflow-y: auto;
+    }
+
+    .region-item {
+        background: var(--dark);
+        border-radius: 8px;
+        padding: 0.6rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        display: flex;
         align-items: center;
+        gap: 0.65rem;
+        text-decoration: none;
+        color: inherit;
         transition: all 0.2s ease;
         cursor: pointer;
-        position: relative;
-    }
-    
-    .leaderboard-item::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 3px;
-        height: 100%;
-        background: var(--primary);
-        opacity: 0;
-        transition: opacity 0.2s ease;
-    }
-    
-    .leaderboard-item:hover {
-        background: var(--dark);
-        padding-left: 2.5rem;
-    }
-    
-    .leaderboard-item:hover::before {
-        opacity: 1;
-    }
-    
-    .leaderboard-item:last-child {
-        border-bottom: none;
     }
 
-    .player-left {
+    .region-item:hover {
+        background: rgba(var(--primary-rgb), 0.15);
+        border-color: rgba(var(--primary-rgb), 0.5);
+        transform: translateX(3px);
+    }
+
+    .region-flag-box {
+        width: 38px;
+        height: 38px;
+        border-radius: 6px;
+        background: var(--bg);
         display: flex;
         align-items: center;
-        gap: 1.25rem;
+        justify-content: center;
+        flex-shrink: 0;
     }
-    
-    .player-rank {
-        font-size: 1.3rem;
+
+    .region-flag {
+        width: 32px;
+        height: 24px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+    .region-flag-globe {
+        width: 32px;
+        height: 32px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+    .region-name {
+        font-size: 0.75rem;
         font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        line-height: 1.2;
+    }
+
+    /* Center - Leaderboard */
+    .leaderboard-scroll {
+        overflow-y: auto;
+        padding: 0.4rem;
+    }
+
+    .player-row {
+        background: var(--dark);
+        border-radius: 8px;
+        padding: 0.65rem 0.75rem;
+        margin-bottom: 0.4rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        display: grid;
+        grid-template-columns: 32px 1fr auto;
+        gap: 0.75rem;
+        align-items: center;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .player-row:hover {
+        background: rgba(var(--primary-rgb), 0.15);
+        border-color: rgba(var(--primary-rgb), 0.5);
+        transform: translateX(3px);
+    }
+
+    .rank-badge {
+        width: 30px;
+        height: 30px;
+        border-radius: 6px;
+        background: rgba(var(--primary-rgb), 0.2);
+        border: 2px solid rgba(var(--primary-rgb), 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        font-weight: 900;
         color: var(--primary);
-        min-width: 35px;
+    }
+
+    .rank-badge.top-3 {
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        border-color: #fbbf24;
+        color: #1f2937;
+    }
+
+    .player-details {
+        min-width: 0;
+    }
+
+    .player-name-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .player-name {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .player-badge {
+        font-size: 0.55rem;
+        padding: 0.15rem 0.35rem;
+        background: rgba(var(--primary-rgb), 0.2);
+        border: 1px solid rgba(var(--primary-rgb), 0.4);
+        border-radius: 3px;
+        text-transform: uppercase;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    .player-stats-text {
+        font-size: 0.65rem;
+        color: var(--text-dim);
+    }
+
+    .player-wr {
+        text-align: right;
+    }
+
+    .wr-value {
+        font-size: 1.15rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .wr-record {
+        font-size: 0.65rem;
+        color: var(--text-dim);
+        margin-top: 0.15rem;
+    }
+
+    /* Right - Stats */
+    .side-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        overflow-y: auto;
+    }
+
+    .stats-grid {
+        padding: 0.5rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    .stat-item {
+        background: var(--dark);
+        padding: 0.75rem 0.5rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
         text-align: center;
     }
 
-    .player-name {
-        font-weight: 700;
-        font-size: 1.1rem;
-        letter-spacing: -0.3px;
-        color: var(--text);
-        text-decoration: none;
-        transition: color 0.2s;
-    }
-
-    .player-name:hover {
-        color: var(--primary);
-    }
-
-    .player-region-badge {
+    .stat-item-label {
+        font-size: 0.6rem;
         color: var(--text-dim);
-        font-size: 0.8rem;
-        background: var(--dark);
-        padding: 0.3rem 0.7rem;
-        border-radius: 6px;
-        margin-top: 0.25rem;
-        font-weight: 600;
         text-transform: uppercase;
+        font-weight: 700;
         letter-spacing: 0.5px;
+        margin-bottom: 0.4rem;
     }
 
-    .player-record {
+    .stat-item-value {
+        font-size: 1.5rem;
+        font-weight: 900;
+        color: var(--text);
+        line-height: 1;
+    }
+
+    .quick-actions {
+        padding: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+    }
+
+    .action-btn {
+        background: var(--dark);
+        padding: 0.65rem 0.5rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
+        text-decoration: none;
+        color: var(--text);
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-align: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .action-btn:hover {
+        background: rgba(var(--primary-rgb), 0.15);
+        border-color: rgba(var(--primary-rgb), 0.5);
+    }
+
+    /* Activity Feed */
+    .activity-list {
+        padding: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .activity-item {
+        background: var(--dark);
+        padding: 0.6rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
+        font-size: 0.7rem;
+        color: var(--text-dim);
+    }
+
+    .activity-title {
         font-weight: 700;
         color: var(--text);
-        font-size: 1.1rem;
-        font-variant-numeric: tabular-nums;
+        margin-bottom: 0.15rem;
+        font-size: 0.75rem;
     }
 
-    .wr-s {
-        color: #22c55e;
-    }
-    
-    .wr-a {
-        color: #84cc16;
-    }
-    
-    .wr-b {
-        color: #eab308;
-    }
-    
-    .wr-c {
-        color: #f97316;
-    }
-    
-    .wr-d {
-        color: #ef4444;
-    }
-    
-    .wr-f {
-        color: #991b1b;
+    .wr-s { color: #10b981; }
+    .wr-a { color: #84cc16; }
+    .wr-b { color: #fbbf24; }
+    .wr-c { color: #fb923c; }
+    .wr-d { color: #f87171; }
+    .wr-f { color: #dc2626; }
+
+    /* Scrollbar */
+    .regions-list::-webkit-scrollbar,
+    .leaderboard-scroll::-webkit-scrollbar,
+    .side-panel::-webkit-scrollbar {
+        width: 3px;
     }
 
-    .region-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1.5rem;
-        margin-bottom: 3.5rem;
-    }
-    
-    .region-card {
-        background: var(--card);
-        padding: 2rem;
-        border-radius: 16px;
-        cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border: 1px solid rgba(255,255,255,0.05);
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .region-card::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, var(--primary) 0%, transparent 50%);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-    }
-    
-    .region-card:hover {
-        border-color: var(--primary);
-        
-        box-shadow: 0 16px 48px rgba(0,0,0,0.4);
-    }
-    
-    .region-card:hover::before {
-        opacity: 0.08;
+    .regions-list::-webkit-scrollbar-track,
+    .leaderboard-scroll::-webkit-scrollbar-track,
+    .side-panel::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.02);
     }
 
-    
-
-    .flag-icon {
-        width: 40px;
-        height: 28px;
-        object-fit: cover;
-        border-radius: 6px;
-        margin-bottom: 1rem;
-        display: block;
-        
-        position: relative;
-        z-index: 1;
+    .regions-list::-webkit-scrollbar-thumb,
+    .leaderboard-scroll::-webkit-scrollbar-thumb,
+    .side-panel::-webkit-scrollbar-thumb {
+        background: rgba(var(--primary-rgb), 0.4);
+        border-radius: 2px;
     }
 
-    .flag-icon-globe {
-        width: 40px;
-        height: 40px;
-        object-fit: cover;
-        border-radius: 6px;
-        margin-bottom: 1rem;
-        display: block;
-        
-        position: relative;
-        z-index: 1;
-    }
-
-    .region-card h3 {
-        font-size: 1.35rem;
-        margin-bottom: 0.5rem;
-        font-weight: 700;
-        position: relative;
-        z-index: 1;
-        letter-spacing: -0.5px;
-    }
-    
-    .region-card p {
-        color: var(--text-dim);
-        font-size: 0.9rem;
-        line-height: 1.6;
-        position: relative;
-        z-index: 1;
-    }
-
-    @media (max-width: 1024px) {
-        .region-grid {
-            grid-template-columns: repeat(2, 1fr);
+    @media (max-width: 1400px) {
+        .dashboard-grid {
+            grid-template-columns: 240px 1fr 240px;
         }
     }
 
-    
+    @media (max-width: 1024px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto auto 1fr auto;
+            height: auto;
+        }
+
+        .side-panel {
+            grid-row: 2;
+            flex-direction: row;
+            gap: 0.75rem;
+        }
+
+        .panel {
+            min-width: 280px;
+        }
+    }
+
     @media (max-width: 768px) {
-    .hero h1 {
-        font-size: 3.25rem !important;
-    }
-    
-    .hero::before {
-        width: 300px;
-        height: 300px;
-    }
-    
-    .hero p {
-        font-size: 1rem;
-        padding: 0 1rem;
-    }
-    
-    /* Stats - 2 per row on mobile */
-    .stat-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-    }
-    
-    .stat-card {
-        padding: 1.25rem 1rem;
-    }
-    
-    .stat-label {
-        font-size: 0.7rem;
-        margin-bottom: 0.4rem;
-    }
-    
-    .stat-value {
-        font-size: 1.75rem;
-    }
-    
-    /* Regions - 2 per row on mobile with equal heights */
-    .region-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-    }
-    
-    .region-card {
-        padding: 1.5rem 1rem;
-        min-height: 170px;
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .flag-icon, .flag-icon-globe {
-        width: 30px;
-        height: auto;
-        margin-bottom: 0.75rem;
-    }
-    
-    .region-card h3 {
-        font-size: 0.95rem;
-        margin-bottom: 0.3rem;
-        min-height: 2.4rem;
-        display: flex;
-        align-items: center;
-    }
-    
-    .region-card p {
-        font-size: 0.75rem;
-        line-height: 1.3;
-        margin-top: auto;
-    }
-    
-    /* Top Players - Better mobile layout */
-    .section-title {
-        font-size: 1.4rem;
-        margin-bottom: 1rem;
-    }
-    
-    .leaderboard-header {
-        padding: 1.25rem 1rem;
-        font-size: 1.2rem;
-    }
-    
-    .leaderboard-item {
-        padding: 1.25rem 1rem;
-    }
+        .page-header {
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
 
-    .leaderboard-item:hover {
-        padding-left: 1rem;
-    }
+        .header-stats {
+            width: 100%;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
 
-    /* Keep player-left horizontal */
-    .player-left {
-        flex-direction: row;
-        gap: 1rem;
-        align-items: center;
-    }
+        .player-row {
+            grid-template-columns: 30px 1fr;
+        }
 
-    .player-rank {
-        font-size: 1.1rem;
-        min-width: 30px;
+        .player-wr {
+            grid-column: 2;
+            text-align: left;
+            margin-top: 0.4rem;
+        }
     }
-
-    /* Name and region stacked */
-    .player-left > div {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-    }
-
-    .player-name {
-        font-size: 1rem;
-    }
-
-    .player-region-badge {
-        font-size: 0.7rem;
-        padding: 0.25rem 0.5rem;
-        margin-top: 0;
-        align-self: flex-start;
-    }
-
-    .player-record {
-        font-size: 0.9rem;
-        text-align: right;
-        white-space: nowrap;
-    }
-}
-
-/* Extra small phones */
-@media (max-width: 480px) {
-    .hero h1 {
-        font-size: 2rem;
-    }
-    
-    .stat-value {
-        font-size: 1.5rem;
-    }
-    
-    .region-card {
-        min-height: 160px;
-    }
-    
-    .region-card h3 {
-        font-size: 0.85rem;
-    }
-    
-    .region-card p {
-        font-size: 0.7rem;
-    }
-    
-    .player-name {
-        font-size: 0.9rem;
-    }
-    
-    .player-record {
-        font-size: 0.85rem;
-    }
-}
-
-
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="hero">
-    <h1>Brawlytics</h1>
-    <div class="mode">OffSeason Mode</div>
-    <p>Individual player tracking and statistics</p>
-</div>
+<div class="dashboard-grid">
+    <!-- Header -->
+    <div class="page-header">
+        <div class="header-title">Brawlytics • OffSeason</div>
+        <div class="header-stats">
+            <div class="stat-box">
+                <div class="stat-value">{{ total_matches }}</div>
+                <div class="stat-label">Matches</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ total_players }}</div>
+                <div class="stat-label">Players</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ total_brawlers }}</div>
+                <div class="stat-label">Brawlers</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">5</div>
+                <div class="stat-label">Regions</div>
+            </div>
+        </div>
+    </div>
 
-<div class="stat-grid">
-    <div class="stat-card">
-        <div class="stat-label">Total Matches</div>
-        <div class="stat-value">{{ total_matches }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Tracked Players</div>
-        <div class="stat-value">{{ total_players }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Unique Brawlers</div>
-        <div class="stat-value">{{ total_brawlers }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Active Regions</div>
-        <div class="stat-value">5</div>
-    </div>
-</div>
+    <!-- Left - Regions -->
+    <div class="panel">
+        <div class="panel-header">Regions</div>
+        <div class="regions-list">
+            <a href="/region/all" class="region-item">
+                <div class="region-flag-box">
+                    <img src="/static/images/flags/all.png" class="region-flag-globe" alt="All">
+                </div>
+                <div class="region-name">All Regions</div>
+            </a>
 
-<h2 class="section-title">Select a Region</h2>
+            <a href="/region/na" class="region-item">
+                <div class="region-flag-box">
+                    <img src="/static/images/flags/us.png" class="region-flag" alt="NA">
+                </div>
+                <div class="region-name">North America</div>
+            </a>
 
-<div class="region-grid">
-    <div class="region-card" onclick="location.href='/region/all'">
-        <img src="/static/images/flags/all.png" class="flag-icon-globe" alt="All Regions">
-        <h3>ALL REGIONS</h3>
-        <p>View statistics across all regions</p>
-    </div>
-    
-    <div class="region-card" onclick="location.href='/region/na'">
-        <img src="/static/images/flags/us.png" class="flag-icon" alt="North America">
-        <h3>NORTH AMERICA</h3>
-        <p>NA region players and statistics</p>
-    </div>
-    
-    <div class="region-card" onclick="location.href='/region/eu'">
-        <img src="/static/images/flags/eu.png" class="flag-icon" alt="Europe">
-        <h3>EUROPE</h3>
-        <p>EU region players and statistics</p>
-    </div>
-    
-    <div class="region-card" onclick="location.href='/region/latam'">
-        <img src="/static/images/flags/br.png" class="flag-icon" alt="LATAM">
-        <h3>LATAM</h3>
-        <p>LATAM region players and statistics</p>
-    </div>
-    
-    <div class="region-card" onclick="location.href='/region/ea'">
-        <img src="/static/images/flags/ea.png" class="flag-icon" alt="East Asia">
-        <h3>EAST ASIA</h3>
-        <p>EA region players and statistics</p>
-    </div>
-    
-    <div class="region-card" onclick="location.href='/region/sea'">
-        <img src="/static/images/flags/all.png" class="flag-icon-globe" alt="Southeast Asia">
-        <h3>SOUTHEAST ASIA</h3>
-        <p>SEA region players and statistics</p>
-    </div>
-</div>
+            <a href="/region/eu" class="region-item">
+                <div class="region-flag-box">
+                    <img src="/static/images/flags/eu.png" class="region-flag" alt="EU">
+                </div>
+                <div class="region-name">Europe</div>
+            </a>
 
-<h2 class="section-title">Top Players</h2>
+            <a href="/region/sa" class="region-item">
+                <div class="region-flag-box">
+                    <img src="/static/images/flags/br.png" class="region-flag" alt="SA">
+                </div>
+                <div class="region-name">SA</div>
+            </a>
 
-<div class="leaderboard-section">
-    <div class="leaderboard-header">
-        Ranked by Win Rate
+            <a href="/region/ea" class="region-item">
+                <div class="region-flag-box">
+                    <img src="/static/images/flags/ea.png" class="region-flag" alt="EA">
+                </div>
+                <div class="region-name">East Asia</div>
+            </a>
+
+            <a href="/region/sea" class="region-item">
+                <div class="region-flag-box">
+                    <img src="/static/images/flags/all.png" class="region-flag-globe" alt="SEA">
+                </div>
+                <div class="region-name">Southeast Asia</div>
+            </a>
+        </div>
     </div>
-    {% if top_players %}
-        {% for player_tag, player in top_players %}
-        {% set win_rate = (player.wins / player.matches * 100) if player.matches > 0 else 0 %}
-        <div class="leaderboard-item" onclick="location.href='/player/{{ player_tag|urlencode }}'">
-            <div class="player-left">
-                <div class="player-rank">{{ loop.index }}</div>
-                <div>
-                    <div class="player-name">{{ player.name }}</div>
-                    <span class="player-region-badge">{{ player.region }}</span>
+
+    <!-- Center - Top Players -->
+    <div class="panel">
+        <div class="panel-header">Top Players • Ranked by Win Rate</div>
+        <div class="leaderboard-scroll">
+            {% if top_players %}
+                {% for player_tag, player in top_players %}
+                {% set win_rate = (player.wins / player.matches * 100) if player.matches > 0 else 0 %}
+                <a href="/player/{{ player_tag|urlencode }}" class="player-row">
+                    <div class="rank-badge {% if loop.index <= 3 %}top-3{% endif %}">
+                        {{ loop.index }}
+                    </div>
+                    <div class="player-details">
+                        <div class="player-name-row">
+                            <span class="player-name">{{ player.name }}</span>
+                            <span class="player-badge">{{ player.region|region_name }}</span>
+                        </div>
+                        <div class="player-stats-text">
+                            {{ player.matches }} games • {{ player.wins }}W-{{ player.losses }}L
+                        </div>
+                    </div>
+                    <div class="player-wr">
+                        {% if win_rate >= 65 %}
+                        <div class="wr-value wr-s">{{ "%.1f"|format(win_rate) }}%</div>
+                        {% elif win_rate >= 57.5 %}
+                        <div class="wr-value wr-a">{{ "%.1f"|format(win_rate) }}%</div>
+                        {% elif win_rate >= 50 %}
+                        <div class="wr-value wr-b">{{ "%.1f"|format(win_rate) }}%</div>
+                        {% elif win_rate >= 42.5 %}
+                        <div class="wr-value wr-c">{{ "%.1f"|format(win_rate) }}%</div>
+                        {% elif win_rate >= 35 %}
+                        <div class="wr-value wr-d">{{ "%.1f"|format(win_rate) }}%</div>
+                        {% else %}
+                        <div class="wr-value wr-f">{{ "%.1f"|format(win_rate) }}%</div>
+                        {% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div style="padding: 2rem; text-align: center; color: var(--text-dim); font-size: 0.8rem;">
+                    No player data available
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Right - Stats & Actions -->
+    <div class="side-panel">
+        <div class="panel">
+            <div class="panel-header">Overview</div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-item-label">Matches</div>
+                    <div class="stat-item-value">{{ total_matches }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-item-label">Players</div>
+                    <div class="stat-item-value">{{ total_players }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-item-label">Brawlers</div>
+                    <div class="stat-item-value">{{ total_brawlers }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-item-label">Regions</div>
+                    <div class="stat-item-value">5</div>
                 </div>
             </div>
-            <div class="player-record">
-                {{ player.wins }}-{{ player.losses }} · 
-                {% if win_rate >= 65 %}
-                <span class="wr-s">{{ "%.1f"|format(win_rate) }}%</span>
-                {% elif win_rate >= 57.5 %}
-                <span class="wr-a">{{ "%.1f"|format(win_rate) }}%</span>
-                {% elif win_rate >= 50 %}
-                <span class="wr-b">{{ "%.1f"|format(win_rate) }}%</span>
-                {% elif win_rate >= 42.5 %}
-                <span class="wr-c">{{ "%.1f"|format(win_rate) }}%</span>
-                {% elif win_rate >= 35 %}
-                <span class="wr-d">{{ "%.1f"|format(win_rate) }}%</span>
-                {% else %}
-                <span class="wr-f">{{ "%.1f"|format(win_rate) }}%</span>
-                {% endif %}
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">Quick Links</div>
+            <div class="quick-actions">
+                <a href="/meta" class="action-btn">Meta Analysis</a>
+                <a href="/region/all" class="action-btn">All Regions</a>
+                <a href="/dashboard" class="action-btn">Refresh</a>
             </div>
         </div>
-        {% endfor %}
-    {% else %}
-        <div style="padding: 2rem; text-align: center; color: var(--text-dim);">
-            No player data available
-        </div>
-    {% endif %}
-</div>
 
+        <div class="panel">
+            <div class="panel-header">Recent Activity</div>
+            <div class="activity-list">
+                <div class="activity-item">
+                    <div class="activity-title">Latest Update</div>
+                    Statistics refreshed
+                </div>
+                <div class="activity-item">
+                    <div class="activity-title">Top Brawler</div>
+                    Most picked this week
+                </div>
+                <div class="activity-item">
+                    <div class="activity-title">Rising Player</div>
+                    New player trending
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

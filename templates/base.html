@@ -14,6 +14,7 @@
         
         :root {
             --primary: {{ theme.primary }};
+            --primary-rgb: {{ theme.get('primary_rgb', '239, 68, 68') }};
             --bg: {{ theme.bg }};
             --card: {{ theme.card }};
             --dark: {{ theme.dark }};
@@ -132,7 +133,10 @@
             max-width: 1400px;
             margin: 0 auto;
             padding: 2.5rem 1.5rem;
+            overflow: visible;
         }
+
+        /* Hover effects — disabled via injected stylesheet */
         
         .breadcrumb {
             margin-bottom: 2rem;
@@ -289,14 +293,17 @@
         <a href="/dashboard" class="logo">Brawlytics</a>
         <div class="nav-links" id="navLinks">
             <a href="/dashboard" class="nav-link">Dashboard</a>
-            <a href="/region/all" class="nav-link">All Regions</a>
             <a href="/meta" class="nav-link">Meta</a>
+            {% if view_mode != 'offseason' %}
+            <a href="/teams" class="nav-link">Teams</a>
+            {% endif %}
             <a href="/brawlers" class="nav-link">Brawlers</a>
             <a href="/modes" class="nav-link">Maps & Modes</a>
             {% if view_mode == 'offseason' %}
             <a href="/players" class="nav-link">Players</a>
             <a href="/possible-teams" class="nav-link">Possible Teams</a>
             {% endif %}
+            <a href="/analyzer" class="nav-link">Analyzer</a>
             <a href="/about" class="nav-link">About</a>
             <a href="/settings" class="nav-link">Settings</a>
         </div>
@@ -336,13 +343,34 @@
 
 
         const themes = {
-            'red': {'primary': '#ef4444', 'bg': '#0a0a0a', 'card': '#111111', 'dark': '#1a1a1a'},
-            'brawl': {'primary': '#e94560', 'bg': '#1a1a2e', 'card': '#16213e', 'dark': '#0f3460'},
-            'purple': {'primary': '#8b5cf6', 'bg': '#1e1b29', 'card': '#2d2438', 'dark': '#1a1625'},
-            'blue': {'primary': '#3b82f6', 'bg': '#0f172a', 'card': '#1e293b', 'dark': '#0f172a'},
-            'green': {'primary': '#10b981', 'bg': '#064e3b', 'card': '#065f46', 'dark': '#022c22'},
-            'orange': {'primary': '#f97316', 'bg': '#1c1917', 'card': '#292524', 'dark': '#1c1917'}
+            'red': {'primary': '#ef4444', 'primary-rgb': '239, 68, 68', 'bg': '#0a0a0a', 'card': '#111111', 'dark': '#1a1a1a'},
+            'brawl': {'primary': '#e94560', 'primary-rgb': '233, 69, 96', 'bg': '#1a1a2e', 'card': '#16213e', 'dark': '#0f3460'},
+            'purple': {'primary': '#8b5cf6', 'primary-rgb': '139, 92, 246', 'bg': '#1e1b29', 'card': '#2d2438', 'dark': '#1a1625'},
+            'blue': {'primary': '#3b82f6', 'primary-rgb': '59, 130, 246', 'bg': '#0f172a', 'card': '#1e293b', 'dark': '#0f172a'},
+            'green': {'primary': '#10b981', 'primary-rgb': '16, 185, 129', 'bg': '#064e3b', 'card': '#065f46', 'dark': '#022c22'},
+            'orange': {'primary': '#f97316', 'primary-rgb': '249, 115, 22', 'bg': '#1c1917', 'card': '#292524', 'dark': '#1c1917'},
+            'mono': {'primary': '#ffffff', 'primary-rgb': '255, 255, 255', 'bg': '#000000', 'card': '#111111', 'dark': '#0a0a0a'}
         };
+
+        function hexToRgb(hex) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(c => c+c).join('');
+            const r = parseInt(hex.substring(0,2), 16);
+            const g = parseInt(hex.substring(2,4), 16);
+            const b = parseInt(hex.substring(4,6), 16);
+            return `${r}, ${g}, ${b}`;
+        }
+
+        /** Add `amount` (0-255) to each channel of a hex color */
+        function lightenHex(hex, amount) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(c => c+c).join('');
+            const clamp = v => Math.min(255, Math.max(0, v));
+            const r = clamp(parseInt(hex.substring(0,2), 16) + amount);
+            const g = clamp(parseInt(hex.substring(2,4), 16) + amount);
+            const b = clamp(parseInt(hex.substring(4,6), 16) + amount);
+            return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+        }
 
         // Load theme from localStorage (not sessionStorage!)
         function loadTheme() {
@@ -351,10 +379,21 @@
         }
 
         function applyTheme(themeName) {
-            const theme = themes[themeName] || themes['red'];
             const root = document.documentElement;
-            
+            if (themeName === 'custom') {
+                const accent = localStorage.getItem('customColor') || '#ef4444';
+                const bg     = localStorage.getItem('customBg')    || '#0a0a0a';
+                // Derive card/dark by lightening bg slightly
+                root.style.setProperty('--primary', accent);
+                root.style.setProperty('--primary-rgb', hexToRgb(accent));
+                root.style.setProperty('--bg', bg);
+                root.style.setProperty('--card', lightenHex(bg, 10));
+                root.style.setProperty('--dark', lightenHex(bg, 5));
+                return;
+            }
+            const theme = themes[themeName] || themes['red'];
             root.style.setProperty('--primary', theme.primary);
+            root.style.setProperty('--primary-rgb', theme['primary-rgb']);
             root.style.setProperty('--bg', theme.bg);
             root.style.setProperty('--card', theme.card);
             root.style.setProperty('--dark', theme.dark);
@@ -367,6 +406,45 @@
 
         // Apply theme immediately (before page renders)
         loadTheme();
+
+        // Apply hover setting immediately
+        (function() {
+            const style = document.createElement('style');
+            style.id = 'hover-disable-style';
+            style.textContent = `
+                .stats-section:hover, .left-card:hover, .filters-section:hover,
+                .overview-stats-box:hover, .brawler-hero-card:hover, .mode-hero-card:hover,
+                .h2h-hero-card:hover, .team-hero-card:hover, .settings-hero-card:hover,
+                .teams-hero-card:hover, .vsteams-bar:hover, .modes-box:hover,
+                .settings-section:hover, .hero-card:hover, .filter-card:hover,
+                .team-panel:hover, .breakdown-section:hover, .recent-match-box:hover,
+                .brawler-card:hover, .map-card:hover, .mode-card:hover, .tier-card:hover,
+                .synergy-card:hover, .matchup-card:hover, .info-section:hover,
+                .maps-section:hover, .teams-section:hover, .used-by-section:hover,
+                .regions-section:hover, .roster-box:hover, .h2h-box:hover,
+                .top-maps-box:hover, .best-teams-panel:hover, .best-brawler-card:hover,
+                .region-card:hover, .modes-section:hover, .player-box:hover,
+                .content-section:hover, .feature-card:hover, .info-box:hover
+                {
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+                    border-color: rgba(var(--primary-rgb), 0.2) !important;
+                    transition: none !important;
+                }
+            `;
+            if (localStorage.getItem('hoverEffects') === 'off') {
+                document.head.appendChild(style);
+            }
+            window._setHoverEffects = function(on) {
+                if (on) {
+                    const s = document.getElementById('hover-disable-style');
+                    if (s) s.remove();
+                } else {
+                    if (!document.getElementById('hover-disable-style')) {
+                        document.head.appendChild(style);
+                    }
+                }
+            };
+        })();
 
         function toggleMenu() {
             const navLinks = document.getElementById('navLinks');
@@ -393,8 +471,8 @@
         });
     </script>
     
-    <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "944c248aa0df47ee945bbfcfe1c3a46f"}'></script><!-- End Cloudflare Web Analytics -->
-
+    <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "51afd222d67c4db5b17444b2e0723cca"}'></script><!-- End Cloudflare Web Analytics -->
+     
     {% block scripts %}{% endblock %}
 
 

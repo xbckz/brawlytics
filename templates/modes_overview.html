@@ -4,381 +4,671 @@
 
 {% block extra_styles %}
 <style>
-    .page-header {
-        text-align: center;
-        margin-bottom: 2rem;
-        padding: 1.5rem 0;
-        position: relative;
+    html, body {
+        overflow-y: auto;
+        height: auto;
     }
 
-    .page-header::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 500px;
-        height: 500px;
-        background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-        opacity: 0.1;
-        pointer-events: none;
-        z-index: -1;
+    .breadcrumb {
+        margin-bottom: 0.75rem;
     }
-    
-    .page-header h1 {
-        font-size: 3rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, var(--primary) 0%, var(--text) 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        letter-spacing: -2px;
-        margin-bottom: 0.5rem;
-    }
-    
-    .page-header p {
-        color: var(--text-dim);
-        font-size: 1.15rem;
-    }
-    
-    .modes-grid {
+
+    .modes-layout {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
+        grid-template-columns: 220px 1fr;
+        grid-template-rows: auto auto;
+        gap: 1rem;
+        overflow: visible;
+        width: 100%;
     }
-    
-    
-    
-    .mode-card {
+
+    .modes-hero-wrapper {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .top-maps-wrapper {
+        grid-column: 1;
+        grid-row: 2;
+        align-self: start;
+    }
+
+    .modes-grid-wrapper {
+        grid-column: 2;
+        grid-row: 1 / 3;
+        align-self: stretch;
+    }
+
+    .modes-grid-wrapper .stats-section {
+        height: 100%;
+    }
+
+    .modes-hero-card {
         background: var(--card);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 0.75rem;
+        border: 2px solid rgba(var(--primary-rgb), 0.25);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 80px;
+    }
+
+    .modes-hero-card h1 {
+        font-size: 1.6rem;
+        font-weight: 900;
+        text-align: center;
+        margin: 0;
+        line-height: 1;
+        color: var(--primary);
+        letter-spacing: -0.3px;
+        padding-bottom: 0.25rem;
+    }
+
+    .hero-desc {
+        text-align: center;
+        color: var(--text-dim);
+        font-size: 0.8rem;
+        line-height: 1.3;
+    }
+
+    /* Shared card styles */
+    .stats-section {
+        background: var(--card);
+        backdrop-filter: blur(15px);
         border-radius: 16px;
         overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.05);
-        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
-        transition: all 0.3s ease;
-        text-decoration: none;
-        color: inherit;
-        display: block;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
+        min-height: 0;
     }
-    
-    .mode-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        border-color: var(--primary);
+
+    .stats-section:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
     }
-    
-    .mode-card-header {
-        background: linear-gradient(135deg, var(--dark) 0%, var(--card) 100%);
-        padding: 2rem;
-        border-bottom: 2px solid var(--primary);
+
+    .section-header,
+    .stats-header {
+        background: var(--dark);
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
+        font-weight: 800;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.4);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        flex-shrink: 0;
+        color: var(--text);
+    }
+
+    .stats-header {
         display: flex;
         align-items: center;
-        gap: 1.5rem;
+        gap: 0.5rem;
     }
-    
+
+    /* Most Played Maps */
+    .top-maps-box {
+        background: var(--card);
+        backdrop-filter: blur(15px);
+        border-radius: 16px;
+        overflow: hidden;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
+    }
+
+    .top-maps-box:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
+    }
+
+    .top-maps-list {
+        display: flex;
+        flex-direction: column;
+        padding: 0.35rem;
+        gap: 0.25rem;
+    }
+
+    .top-map-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.4rem;
+        background: var(--dark);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.04);
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .top-map-item:hover {
+        background: rgba(var(--primary-rgb), 0.08);
+        border-color: rgba(var(--primary-rgb), 0.3);
+    }
+
+    .top-map-img {
+        width: 40px;
+        height: 40px;
+        border-radius: 4px;
+        object-fit: cover;
+        flex-shrink: 0;
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .top-map-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .top-map-name {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .top-map-mode {
+        font-size: 0.65rem;
+        color: var(--text-dim);
+    }
+
+    .top-map-games {
+        font-size: 0.65rem;
+        font-weight: 800;
+        color: var(--text);
+        flex-shrink: 0;
+    }
+
+    /* Right Column: Modes Grid */
+    .stats-content {
+        padding: 0.35rem;
+        background: var(--bg);
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modes-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-auto-rows: 1fr;
+        gap: 0.35rem;
+        flex: 1;
+    }
+
+    .mode-card {
+        background: var(--dark);
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.06);
+        transition: all 0.2s ease;
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .mode-card:hover {
+        background: rgba(var(--primary-rgb), 0.08);
+        border-color: rgba(var(--primary-rgb), 0.5);
+    }
+
+    .mode-card-header {
+        background: rgba(255,255,255,0.03);
+        padding: 0.4rem 0.6rem;
+        border-bottom: 2px solid rgba(var(--primary-rgb), 0.3);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
     .mode-icon {
-        width: 80px;
-        height: 80px;
-        background: rgba(255,255,255,0.05);
-        border-radius: 12px;
+        width: 44px;
+        height: 44px;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
     }
-    
+
     .mode-icon img {
-        width: 60px;
-        height: 60px;
+        width: 40px;
+        height: 40px;
         object-fit: contain;
     }
-    
-    .mode-icon-text {
-        font-size: 2.5rem;
-    }
-    
+
     .mode-info {
         flex: 1;
+        min-width: 0;
     }
-    
+
     .mode-name {
-        font-size: 1.75rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
+        font-size: 1.1rem;
+        font-weight: 800;
         color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
-    
+
     .mode-subtitle {
         color: var(--text-dim);
-        font-size: 0.9rem;
+        font-size: 0.7rem;
     }
-    
+
     .mode-card-body {
-        padding: 1.5rem 2rem;
-        background: var(--dark);
+        padding: 0.3rem 0.6rem 0.35rem;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        justify-content: space-evenly;
     }
-    
+
     .mode-stats {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 1rem;
-        margin-bottom: 1.5rem;
+        gap: 0.3rem;
+        margin-bottom: 0.35rem;
     }
-    
+
     .mode-stat {
+        background: rgba(255,255,255,0.04);
+        border-radius: 6px;
+        padding: 0.35rem 0.3rem;
         text-align: center;
     }
-    
+
     .mode-stat-value {
-        font-size: 1.5rem;
-        font-weight: 700;
+        font-size: 1rem;
+        font-weight: 800;
         color: var(--text);
-        margin-bottom: 0.25rem;
     }
-    
+
     .mode-stat-label {
-        font-size: 0.75rem;
+        font-size: 0.6rem;
         color: var(--text-dim);
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
+        margin-top: 0.1rem;
     }
-    
+
     .mode-top-brawler {
-        background: rgba(255,255,255,0.03);
-        padding: 1rem;
+        background: rgba(var(--primary-rgb), 0.08);
+        padding: 0.3rem 0.45rem;
         border-radius: 8px;
+        border: 1px solid rgba(var(--primary-rgb), 0.15);
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.6rem;
     }
-    
+
     .mode-top-brawler-icon {
-        width: 40px;
-        height: 40px;
-        background: rgba(255,255,255,0.05);
-        border-radius: 6px;
+        width: 36px;
+        height: 36px;
+        flex-shrink: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        flex-shrink: 0;
     }
-    
+
     .mode-top-brawler-icon img {
         width: 32px;
         height: 32px;
         object-fit: contain;
     }
-    
+
     .mode-top-brawler-info {
         flex: 1;
+        min-width: 0;
     }
-    
+
     .mode-top-brawler-label {
-        font-size: 0.7rem;
+        font-size: 0.55rem;
         color: var(--text-dim);
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin-bottom: 0.25rem;
     }
-    
+
     .mode-top-brawler-name {
-        font-weight: 600;
+        font-weight: 700;
+        font-size: 0.9rem;
         color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
-    
+
     .mode-top-brawler-wr {
         font-size: 1.1rem;
-        font-weight: 700;
-        color: #22c55e;
+        font-weight: 800;
+        flex-shrink: 0;
     }
 
+    .mode-top-brawler-picks {
+        font-size: 0.6rem;
+        color: var(--text-dim);
+        text-align: right;
+    }
 
+    /* Color-coded win rates */
+    .wr-s { color: #10b981; }
+    .wr-a { color: #84cc16; }
+    .wr-b { color: #fbbf24; }
+    .wr-c { color: #fb923c; }
+    .wr-d { color: #f87171; }
+    .wr-f { color: #dc2626; }
 
-    @media (max-width: 768px) {
-    body {
-        overflow-x: hidden;
+    .no-data {
+        text-align: center;
+        padding: 1.5rem 0.5rem;
+        color: var(--text-dim);
+        font-size: 0.8rem;
+        grid-column: 1 / -1;
     }
-    
-    .container {
-        padding: 1rem;
-        max-width: 100%;
-        overflow-x: hidden;
+
+    /* Custom scrollbar */
+    .stats-content::-webkit-scrollbar {
+        width: 4px;
     }
-    
-    .modes-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0.75rem;
+
+    .stats-content::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.02);
     }
-    
-    .mode-card-header {
-        padding: 0.75rem;
-        gap: 0.5rem;
+
+    .stats-content::-webkit-scrollbar-thumb {
+        background: rgba(var(--primary-rgb), 0.4);
+        border-radius: 2px;
     }
-    
-    .mode-icon {
-        width: 40px;
-        height: 40px;
+
+    .stats-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(var(--primary-rgb), 0.6);
     }
-    
-    .mode-icon img {
-        width: 30px;
-        height: 30px;
+
+    /* Bottom Panel: Best Teams */
+    .best-teams-panel {
+        margin-top: 1rem;
+        background: var(--card);
+        backdrop-filter: blur(15px);
+        border-radius: 16px;
+        overflow: hidden;
+        border: 2px solid rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s ease;
     }
-    
-    .mode-icon-text {
-        font-size: 1.2rem;
+
+    .best-teams-panel:hover {
+        border-color: rgba(var(--primary-rgb), 0.4);
+        box-shadow: 0 6px 28px rgba(var(--primary-rgb), 0.2);
     }
-    
-    .mode-name {
-        font-size: 0.9rem;
-        margin-bottom: 0.15rem;
-    }
-    
-    .mode-subtitle {
-        font-size: 0.65rem;
-    }
-    
-    .mode-card-body {
-        padding: 0.75rem;
-    }
-    
-    .mode-stats {
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-    }
-    
-    .mode-stat-value {
-        font-size: 0.9rem;
-    }
-    
-    .mode-stat-label {
-        font-size: 0.55rem;
-    }
-    
-    .mode-top-brawler {
-        padding: 0.75rem;
-        gap: 0.5rem;
+
+    .best-teams-grid {
         display: grid;
-        grid-template-columns: auto 1fr auto;
-        grid-template-rows: auto auto;
-        align-items: center;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.35rem;
+        padding: 0.4rem;
     }
-    
-    .mode-top-brawler-icon {
+
+    .best-team-card {
+        background: var(--dark);
+        border-radius: 8px;
+        padding: 0.5rem 0.6rem;
+        border: 1px solid rgba(255,255,255,0.06);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .best-team-card:hover {
+        background: rgba(var(--primary-rgb), 0.08);
+        border-color: rgba(var(--primary-rgb), 0.5);
+    }
+
+    .best-team-icons {
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+        flex-shrink: 0;
+    }
+
+    .best-team-logo {
         width: 32px;
         height: 32px;
-        grid-column: 1;
-        grid-row: 1;
-        align-self: start;
-        margin-bottom: 0.5rem;
+        object-fit: contain;
+        flex-shrink: 0;
     }
-    
-    .mode-top-brawler-icon img {
-        width: 26px;
-        height: 26px;
+
+    .best-team-x {
+        font-size: 0.55rem;
+        font-weight: 700;
+        color: var(--text-dim);
     }
-    
-    .mode-top-brawler-info {
-        grid-column: 1;
-        grid-row: 2;
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
+
+    .best-team-mode-icon {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
     }
-    
-    .mode-top-brawler-label {
-        display: none;
+
+    .best-team-mode-icon img {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
     }
-    
-    .mode-top-brawler-name {
-        font-size: 0.7rem;
-        text-align: center;
-        word-wrap: break-word;
-        max-width: 65px;
-        line-height: 1.2;
+
+    .best-team-info {
+        flex: 1;
+        min-width: 0;
     }
-    
-    .mode-top-brawler > div:last-child {
-        grid-column: 3;
-        grid-row: 1 / 3;
-        text-align: right;
-        display: flex;
-        flex-direction: column;
-        gap: 0.15rem;
-        align-self: center;
-    }
-    
-    .mode-top-brawler-wr {
-        font-size: 0.9rem;
-    }
-    
-    .mode-top-brawler > div:last-child > div:last-child {
+
+    .best-team-mode-name {
         font-size: 0.6rem;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
     }
-}
+
+    .best-team-name {
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .best-team-wr-col {
+        text-align: right;
+        flex-shrink: 0;
+    }
+
+    .best-team-wr {
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .best-team-record {
+        font-size: 0.55rem;
+        color: var(--text-dim);
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Game Modes & Maps</h1>
-    <p>All game modes and their statistics</p>
+<div class="breadcrumb">
+    <a href="/dashboard">Home</a>
+    <span class="breadcrumb-separator">/</span>
+    <span class="breadcrumb-current">Game Modes</span>
 </div>
 
-<div class="modes-grid">
-    {% for mode in modes %}
-    {% set mode_img = mode.name.lower().replace(' ', '_') + '.png' %}
-    {% set mode_url = '/modes/' + mode.name.lower().replace(' ', '_') %}
-    <a href="{{ mode_url }}" class="mode-card">
-        <div class="mode-card-header">
-            <div class="mode-icon">
-                <img src="/static/images/modes/{{ mode_img }}" 
-                     alt="{{ mode.name }}"
-                     onerror="this.style.display='none'; this.parentElement.innerHTML='<span class=\'mode-icon-text\'>🎮</span>'">
-            </div>
-            <div class="mode-info">
-                <div class="mode-name">{{ mode.name }}</div>
-                <div class="mode-subtitle">Competitive Game Mode</div>
+<div class="modes-layout">
+    <!-- Hero Card (top-left) -->
+    <div class="modes-hero-wrapper">
+        <div class="modes-hero-card">
+            <h1>Game Modes</h1>
+            <div class="hero-desc">All competitive game modes and their statistics</div>
+        </div>
+    </div>
+
+    <!-- Most Played Maps (bottom-left) -->
+    <div class="top-maps-wrapper">
+        <div class="top-maps-box">
+            <div class="section-header">Most Played Maps</div>
+            <div class="top-maps-list">
+                {% for map in top_maps %}
+                {% set map_img = map.name.lower().replace(' ', '_').replace("'", '').replace('-', '_') + '.png' %}
+                {% set map_url = '/maps/' + map.name.lower().replace(' ', '_').replace("'", '').replace('-', '_') %}
+                <a href="{{ map_url }}" class="top-map-item">
+                    <img src="/static/images/maps/{{ map_img }}" alt="{{ map.name }}" class="top-map-img" onerror="this.style.display='none'">
+                    <div class="top-map-info">
+                        <div class="top-map-name">{{ map.name }}</div>
+                        <div class="top-map-mode">{{ map.mode }}</div>
+                    </div>
+                    <div class="top-map-games">{{ map.games }} GAMES</div>
+                </a>
+                {% endfor %}
             </div>
         </div>
-        
-        <div class="mode-card-body">
-            <div class="mode-stats">
-                <div class="mode-stat">
-                    <div class="mode-stat-value">{{ mode.total_games }}</div>
-                    <div class="mode-stat-label">Games</div>
-                </div>
-                <div class="mode-stat">
-                    <div class="mode-stat-value">{{ mode.total_maps }}</div>
-                    <div class="mode-stat-label">Maps</div>
-                </div>
-                <div class="mode-stat">
-                    <div class="mode-stat-value">{{ mode.total_brawlers }}</div>
-                    <div class="mode-stat-label">Brawlers</div>
-                </div>
+    </div>
+
+    <!-- Modes Grid (right, spans both rows) -->
+    <div class="modes-grid-wrapper">
+        <div class="stats-section" id="modes-grid-section" style="min-height: 0;">
+        <div class="stats-header">All Game Modes</div>
+        <div class="stats-content">
+            <div class="modes-grid">
+                {% for mode in modes %}
+                {% set mode_img = mode.name.lower().replace(' ', '_') + '.png' %}
+                {% set mode_url = '/modes/' + mode.name.lower().replace(' ', '_') %}
+                <a href="{{ mode_url }}" class="mode-card">
+                    <div class="mode-card-header">
+                        <div class="mode-icon">
+                            <img src="/static/images/modes/{{ mode_img }}"
+                                 alt="{{ mode.name }}"
+                                 onerror="this.style.display='none'">
+                        </div>
+                        <div class="mode-info">
+                            <div class="mode-name">{{ mode.name }}</div>
+                            
+                        </div>
+                    </div>
+
+                    <div class="mode-card-body">
+                        <div class="mode-stats">
+                            <div class="mode-stat">
+                                <div class="mode-stat-value">{{ mode.total_games }}</div>
+                                <div class="mode-stat-label">Games</div>
+                            </div>
+                            <div class="mode-stat">
+                                <div class="mode-stat-value">{{ mode.total_maps }}</div>
+                                <div class="mode-stat-label">Maps</div>
+                            </div>
+                            <div class="mode-stat">
+                                <div class="mode-stat-value">{{ mode.total_brawlers }}</div>
+                                <div class="mode-stat-label">Brawlers</div>
+                            </div>
+                        </div>
+
+                        {% if mode.top_brawler %}
+                        {% set brawler_img = mode.top_brawler.name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+                        {% set wr = mode.top_brawler.win_rate %}
+                        <div class="mode-top-brawler">
+                            <div class="mode-top-brawler-icon">
+                                <img src="/static/images/brawlers/{{ brawler_img }}"
+                                     alt="{{ mode.top_brawler.name }}"
+                                     onerror="this.style.display='none'">
+                            </div>
+                            <div class="mode-top-brawler-info">
+                                <div class="mode-top-brawler-label">Best Brawler</div>
+                                <div class="mode-top-brawler-name">{{ mode.top_brawler.name }}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                {% if wr >= 65 %}
+                                <div class="mode-top-brawler-wr wr-s">{{ "%.1f"|format(wr) }}%</div>
+                                {% elif wr >= 57.5 %}
+                                <div class="mode-top-brawler-wr wr-a">{{ "%.1f"|format(wr) }}%</div>
+                                {% elif wr >= 50 %}
+                                <div class="mode-top-brawler-wr wr-b">{{ "%.1f"|format(wr) }}%</div>
+                                {% elif wr >= 42.5 %}
+                                <div class="mode-top-brawler-wr wr-c">{{ "%.1f"|format(wr) }}%</div>
+                                {% elif wr >= 35 %}
+                                <div class="mode-top-brawler-wr wr-d">{{ "%.1f"|format(wr) }}%</div>
+                                {% else %}
+                                <div class="mode-top-brawler-wr wr-f">{{ "%.1f"|format(wr) }}%</div>
+                                {% endif %}
+                                <div class="mode-top-brawler-picks">{{ mode.top_brawler.picks }} picks</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </a>
+                {% endfor %}
             </div>
-            
-            {% if mode.top_brawler %}
-            <div class="mode-top-brawler">
-                {% set brawler_img = mode.top_brawler.name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
-                <div class="mode-top-brawler-icon">
-                    <img src="/static/images/brawlers/{{ brawler_img }}" 
-                         alt="{{ mode.top_brawler.name }}"
-                         onerror="this.style.display='none'">
-                </div>
-                <div class="mode-top-brawler-info">
-                    <div class="mode-top-brawler-label">Top Brawler</div>
-                    <div class="mode-top-brawler-name">{{ mode.top_brawler.name }}</div>
-                </div>
-                <div style="text-align: right;">
-                    <div class="mode-top-brawler-wr">{{ "%.1f"|format(mode.top_brawler.win_rate) }}%</div>
-                    <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 0.25rem;">{{ mode.top_brawler.picks }} picks</div>
-                </div>
-            </div>
-            {% endif %}
         </div>
-    </a>
-    {% endfor %}
+        </div>
+    </div>
 </div>
+
+<!-- Best Team Per Mode Panel -->
+<div class="best-teams-panel">
+    <div class="stats-header">Best Team Per Mode</div>
+    <div class="best-teams-grid">
+        {% for mode in modes %}
+        {% if mode.best_team %}
+        {% set mode_img = mode.name.lower().replace(' ', '_') + '.png' %}
+        {% set team_logo = mode.best_team.name.lower().replace(' ', '_').replace('-', '_') + '.png' %}
+        {% set team_url = '/team/' + mode.best_team.name %}
+        {% set twr = mode.best_team.win_rate %}
+        <a href="{{ team_url }}" class="best-team-card">
+            <div class="best-team-icons">
+                <img src="/static/images/teams/{{ team_logo }}" alt="{{ mode.best_team.name }}" class="best-team-logo" onerror="this.src='/static/images/teams/default.png'">
+                <span class="best-team-x">x</span>
+                <div class="best-team-mode-icon">
+                    <img src="/static/images/modes/{{ mode_img }}" alt="{{ mode.name }}" onerror="this.style.display='none'">
+                </div>
+            </div>
+            <div class="best-team-info">
+                <div class="best-team-mode-name">{{ mode.name }}</div>
+                <div class="best-team-name">{{ mode.best_team.name }}</div>
+            </div>
+            <div class="best-team-wr-col">
+                {% if twr >= 65 %}
+                <div class="best-team-wr wr-s">{{ "%.1f"|format(twr) }}%</div>
+                {% elif twr >= 57.5 %}
+                <div class="best-team-wr wr-a">{{ "%.1f"|format(twr) }}%</div>
+                {% elif twr >= 50 %}
+                <div class="best-team-wr wr-b">{{ "%.1f"|format(twr) }}%</div>
+                {% elif twr >= 42.5 %}
+                <div class="best-team-wr wr-c">{{ "%.1f"|format(twr) }}%</div>
+                {% elif twr >= 35 %}
+                <div class="best-team-wr wr-d">{{ "%.1f"|format(twr) }}%</div>
+                {% else %}
+                <div class="best-team-wr wr-f">{{ "%.1f"|format(twr) }}%</div>
+                {% endif %}
+                <div class="best-team-record">{{ mode.best_team.wins }}W - {{ mode.best_team.matches - mode.best_team.wins }}L</div>
+            </div>
+        </a>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
 {% endblock %}
